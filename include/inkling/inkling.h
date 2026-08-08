@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 typedef struct {
-    uint32_t model_max_lenght;
+    uint32_t model_max_length;
     uint32_t vocab_size;
     uint32_t eos_token_id;
 
