@@ -35,4 +35,9 @@ typedef struct {
 int inkling_config_load(const char *path, InklingConfig *config);
 int inkling_config_is_valid(const InklingConfig *config);
 
+int inkling_safetensors_header_size(
+    const char *path,
+    uint64_t *header_size
+);
+
 #endif 
