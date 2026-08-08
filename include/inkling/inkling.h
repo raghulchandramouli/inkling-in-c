@@ -32,7 +32,7 @@ typedef struct {
     float route_scale;
 } InklingConfig;
 
-InklingConfig inkling_small_config(void);
+int inkling_config_load(const char *path, InklingConfig *config);
 int inkling_config_is_valid(const InklingConfig *config);
 
 #endif 

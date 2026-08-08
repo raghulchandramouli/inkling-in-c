@@ -8,6 +8,8 @@ SOURCES := \
 	src/cli/inkling_run.c \
 	src/io/inkling_config.c
 
+CONFIG := tests/fixtures/inkling-small-config.json
+
 .PHONY: all test clean
 
 all: $(BIN)
@@ -17,7 +19,7 @@ $(BIN): $(SOURCES) include/inkling/inkling.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) -o $(BIN)
 
 test: $(BIN)
-	./$(BIN)
+	./$(BIN) $(CONFIG)
 
 clean:
 	rm -f $(BIN)

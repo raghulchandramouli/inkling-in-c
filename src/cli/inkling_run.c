@@ -4,12 +4,17 @@
 
 #include "inkling/inkling.h"
 
-int main(void)
+int main(int argc, char **argv)
 {
-    InklingConfig config = inkling_small_config();
+    if (argc != 2) {
+        fprintf(stderr, "usage: %s <config.json>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
 
-    if (!inkling_config_is_valid(&config)) {
-        fputs("invalid Inkling configuration\n", stderr);
+    InklingConfig config;
+
+    if (!inkling_config_load(argv[1], &config)) {
+        fputs("failed to load Inkling configuration\n", stderr);
         return EXIT_FAILURE;
     }
 
