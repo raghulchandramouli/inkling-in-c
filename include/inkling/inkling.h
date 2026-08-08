@@ -40,4 +40,14 @@ int inkling_safetensors_header_size(
     uint64_t *header_size
 );
 
+/*
+* On success, the caller owns *header_json and must free it.
+*/
+
+int inkling_safetensors_read_header(
+    const char *path,
+    char **header_json,
+    uint64_t *header_size
+);
+
 #endif 
