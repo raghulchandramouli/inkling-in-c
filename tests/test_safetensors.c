@@ -1,13 +1,8 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "inkling/inkling.h"
-
-static const char expected_header[] =
-    "{\"test.weight\":{\"dtype\":\"F32\",\"shape\":[1],"
-    "\"data_offsets\":[0,4]}}";
 
 int main(int argc, char **argv)
 {
@@ -30,28 +25,44 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    if (header_size != (uint64_t)strlen(expected_header)) {
-        fprintf(
-            stderr,
-            "unexpected header size: %" PRIu64 "\n",
-            header_size
-        );
+    InklingTensorInfo tensor;
+
+    if (!inkling_safetensors_find_tensor(
+            header,
+            "test.weight",
+            &tensor)) {
+        fputs("could not parse test.weight\n", stderr);
         free(header);
         return EXIT_FAILURE;
     }
 
-    if (strcmp(header, expected_header) != 0) {
-        fputs("Safetensors header content does not match\n", stderr);
+    if (tensor.dtype != INKLING_DTYPE_F32 ||
+        tensor.rank != 1 ||
+        tensor.shape[0] != 1 ||
+        tensor.data_start != 0 ||
+        tensor.data_end != 4) {
+        fputs("incorrect tensor metadata\n", stderr);
         free(header);
         return EXIT_FAILURE;
     }
+
+    uint64_t file_offset =
+        8 + header_size + tensor.data_start;
+
+    puts("Tensor metadata OK");
+    puts("name:         test.weight");
+    puts("dtype:        F32");
+
+    printf("rank:         %" PRIu32 "\n", tensor.rank);
+    printf("shape:        [%" PRIu64 "]\n", tensor.shape[0]);
 
     printf(
-        "Safetensors JSON header OK: %" PRIu64 " bytes\n",
-        header_size
+        "data offsets: [%" PRIu64 ", %" PRIu64 ")\n",
+        tensor.data_start,
+        tensor.data_end
     );
 
-    printf("%s\n", header);
+    printf("file offset:  %" PRIu64 "\n", file_offset);
 
     free(header);
     return EXIT_SUCCESS;

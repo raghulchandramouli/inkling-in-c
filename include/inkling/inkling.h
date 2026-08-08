@@ -1,7 +1,24 @@
 #ifndef INKLING_INKLING_H
 #define INKLING_INKLING_H
+#define INKLING_MAX_TENSOR_RANK 8
 
 #include <stdint.h>
+
+typedef enum {
+    INKLING_DTYPE_UNKNOWN = 0,
+    INKLING_DTYPE_F32,
+    INKLING_DTYPE_BF16
+} InklingDataType;
+
+typedef struct {
+    InklingDataType dtype;
+
+    uint32_t rank;
+    uint64_t shape[INKLING_MAX_TENSOR_RANK];
+
+    uint64_t data_start;
+    uint64_t data_end;
+} InklingTensorInfo;
 
 typedef struct {
     uint32_t model_max_length;
@@ -41,13 +58,18 @@ int inkling_safetensors_header_size(
 );
 
 /*
-* On success, the caller owns *header_json and must free it.
-*/
-
+ * On success, the caller owns *header_json and must free it.
+ */
 int inkling_safetensors_read_header(
     const char *path,
     char **header_json,
     uint64_t *header_size
 );
 
-#endif 
+int inkling_safetensors_find_tensor(
+    const char *header_json,
+    const char *tensor_name,
+    InklingTensorInfo *tensor
+);
+
+#endif
