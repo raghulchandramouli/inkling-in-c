@@ -3,7 +3,7 @@
 InklingConfig inkling_small_config(void)
 {
     return (InklingConfig) {
-        .model_max_lenght = 1048576,
+        .model_max_length = 1048576, = 1048576,
         .vocab_size = 201024,
         .eos_token_id = 200006,
 
