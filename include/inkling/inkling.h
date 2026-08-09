@@ -2,6 +2,7 @@
 #define INKLING_INKLING_H
 #define INKLING_MAX_TENSOR_RANK 8
 
+#include <stddef.h>
 #include <stdint.h>
 
 typedef enum {
@@ -70,6 +71,14 @@ int inkling_safetensors_find_tensor(
     const char *header_json,
     const char *tensor_name,
     InklingTensorInfo *tensor
+);
+
+int inkling_safetensors_read_tensor_data(
+    const char *path,
+    uint64_t header_size,
+    const InklingTensorInfo *tensor,
+    void *destination,
+    size_t destination_size
 );
 
 #endif

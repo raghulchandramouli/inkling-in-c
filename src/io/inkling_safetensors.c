@@ -1,7 +1,8 @@
 #include <ctype.h>
+#include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <string.h>
 
 #include "inkling/inkling.h"
@@ -500,5 +501,76 @@ int inkling_safetensors_find_tensor(
     }
 
     *tensor = parsed;
+    return 1;
+}
+
+int inkling_safetensors_read_tensor_data(
+    const char *path,
+    uint64_t header_size,
+    const InklingTensorInfo *tensor,
+    void *destination,
+    size_t destination_size
+)
+{
+    if (path == NULL ||
+        tensor == NULL ||
+        destination == NULL ||
+        tensor->data_end < tensor->data_start) {
+        return 0;
+    }
+
+    uint64_t tensor_size =
+        tensor->data_end - tensor->data_start;
+
+    if (tensor_size > SIZE_MAX ||
+        destination_size < (size_t)tensor_size) {
+        fputs("tensor destination is too small\n", stderr);
+        return 0;
+    }
+
+    if (header_size > UINT64_MAX - SAFETENSORS_PREFIX_SIZE ||
+        tensor->data_start >
+            UINT64_MAX - SAFETENSORS_PREFIX_SIZE - header_size) {
+        fputs("Safetensors tensor offset overflow\n", stderr);
+        return 0;
+    }
+
+    uint64_t file_offset =
+        SAFETENSORS_PREFIX_SIZE +
+        header_size +
+        tensor->data_start;
+
+    if (file_offset > LONG_MAX) {
+        fputs("Safetensors tensor offset is unsupported\n", stderr);
+        return 0;
+    }
+
+    FILE *file = fopen(path, "rb");
+
+    if (file == NULL) {
+        fprintf(stderr, "cannot open Safetensors file: %s\n", path);
+        return 0;
+    }
+
+    if (fseek(file, (long)file_offset, SEEK_SET) != 0) {
+        fputs("cannot seek to Safetensors tensor\n", stderr);
+        fclose(file);
+        return 0;
+    }
+
+    size_t bytes_read = fread(
+        destination,
+        1,
+        (size_t)tensor_size,
+        file
+    );
+
+    fclose(file);
+
+    if (bytes_read != (size_t)tensor_size) {
+        fputs("incomplete Safetensors tensor data\n", stderr);
+        return 0;
+    }
+
     return 1;
 }
