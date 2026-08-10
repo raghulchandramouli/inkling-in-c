@@ -8,6 +8,7 @@ TEST_SAFETENSORS := bin/test_safetensors
 
 CONFIG := tests/fixtures/inkling-small-config.json
 SAFETENSORS_FIXTURE := tests/fixtures/tiny.safetensors
+REAL_SAFETENSORS_HEADER := tests/fixtures/inkling-shard-09-header.safetensors
 
 INKLING_SOURCES := \
 	src/cli/inkling_run.c \
@@ -32,9 +33,9 @@ $(TEST_SAFETENSORS): $(SAFETENSORS_TEST_SOURCES) include/inkling/inkling.h
 $(SAFETENSORS_FIXTURE): tools/make_tiny_fixture.py
 	python3 tools/make_tiny_fixture.py
 
-test: $(BIN) $(TEST_SAFETENSORS) $(SAFETENSORS_FIXTURE)
+test: $(BIN) $(TEST_SAFETENSORS) $(SAFETENSORS_FIXTURE) $(REAL_SAFETENSORS_HEADER)
 	./$(BIN) $(CONFIG)
-	./$(TEST_SAFETENSORS) $(SAFETENSORS_FIXTURE)
+	./$(TEST_SAFETENSORS) $(SAFETENSORS_FIXTURE) $(REAL_SAFETENSORS_HEADER)
 
 clean:
 	rm -f $(BIN) $(TEST_SAFETENSORS)

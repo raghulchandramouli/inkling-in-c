@@ -7,10 +7,10 @@
 
 int main(int argc, char **argv)
 {
-    if (argc != 2) {
+    if (argc != 3) {
         fprintf(
             stderr,
-            "usage: %s <file.safetensors>\n",
+            "usage: %s <tiny.safetensors> <real-header.safetensors>\n",
             argv[0]
         );
         return EXIT_FAILURE;
@@ -108,6 +108,60 @@ int main(int argc, char **argv)
     );
 
     printf("decoded F32:  %.1f\n", value);
+
+    free(header);
+
+    header = NULL;
+    header_size = 0;
+
+    if (!inkling_safetensors_read_header(
+            argv[2],
+            &header,
+            &header_size)) {
+        return EXIT_FAILURE;
+    }
+
+    if (header_size != 5816) {
+        fprintf(
+            stderr,
+            "expected 5816-byte real header, got %" PRIu64 "\n",
+            header_size
+        );
+        free(header);
+        return EXIT_FAILURE;
+    }
+
+    if (!inkling_safetensors_find_tensor(
+            header,
+            "model.llm.layers.0.attn.k_norm.weight",
+            &tensor)) {
+        fputs("could not parse real Inkling tensor\n", stderr);
+        free(header);
+        return EXIT_FAILURE;
+    }
+
+    if (tensor.dtype != INKLING_DTYPE_BF16 ||
+        tensor.rank != 1 ||
+        tensor.shape[0] != 128 ||
+        tensor.data_start != 3084 ||
+        tensor.data_end != 3340) {
+        fputs("incorrect real Inkling tensor metadata\n", stderr);
+        free(header);
+        return EXIT_FAILURE;
+    }
+
+    uint64_t payload_size =
+        tensor.data_end - tensor.data_start;
+
+    file_offset = 8 + header_size + tensor.data_start;
+
+    puts("Real Inkling metadata OK");
+    puts("name:         model.llm.layers.0.attn.k_norm.weight");
+    puts("dtype:        BF16");
+
+    printf("shape:        [%" PRIu64 "]\n", tensor.shape[0]);
+    printf("payload size: %" PRIu64 " bytes\n", payload_size);
+    printf("file offset:  %" PRIu64 "\n", file_offset);
 
     free(header);
     return EXIT_SUCCESS;
