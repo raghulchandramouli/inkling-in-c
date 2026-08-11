@@ -9,6 +9,8 @@ TEST_SAFETENSORS := bin/test_safetensors
 CONFIG := tests/fixtures/inkling-small-config.json
 SAFETENSORS_FIXTURE := tests/fixtures/tiny.safetensors
 REAL_SAFETENSORS_HEADER := tests/fixtures/inkling-shard-09-header.safetensors
+ENCODER_FIXTURE := tests/fixtures/encoders.safetensors
+NVFP4_FIXTURE := tests/fixtures/nvfp4.safetensors
 
 INKLING_SOURCES := \
 	src/cli/inkling_run.c \
@@ -28,14 +30,20 @@ $(BIN): $(INKLING_SOURCES) include/inkling/inkling.h
 
 $(TEST_SAFETENSORS): $(SAFETENSORS_TEST_SOURCES) include/inkling/inkling.h
 	mkdir -p bin
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(SAFETENSORS_TEST_SOURCES) -o $(TEST_SAFETENSORS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SAFETENSORS_TEST_SOURCES) -o $(TEST_SAFETENSORS) -lm
 
 $(SAFETENSORS_FIXTURE): tools/make_tiny_fixture.py
 	python3 tools/make_tiny_fixture.py
 
-test: $(BIN) $(TEST_SAFETENSORS) $(SAFETENSORS_FIXTURE) $(REAL_SAFETENSORS_HEADER)
+$(ENCODER_FIXTURE): tools/make_encoder_fixture.py
+	python3 tools/make_encoder_fixture.py
+
+$(NVFP4_FIXTURE): tools/make_nvfp4_fixture.py
+	python3 tools/make_nvfp4_fixture.py
+
+test: $(BIN) $(TEST_SAFETENSORS) $(SAFETENSORS_FIXTURE) $(REAL_SAFETENSORS_HEADER) $(ENCODER_FIXTURE) $(NVFP4_FIXTURE)
 	./$(BIN) $(CONFIG)
-	./$(TEST_SAFETENSORS) $(SAFETENSORS_FIXTURE) $(REAL_SAFETENSORS_HEADER)
+	./$(TEST_SAFETENSORS) $(SAFETENSORS_FIXTURE) $(REAL_SAFETENSORS_HEADER) $(ENCODER_FIXTURE) $(NVFP4_FIXTURE)
 
 clean:
 	rm -f $(BIN) $(TEST_SAFETENSORS)
