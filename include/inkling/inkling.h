@@ -1,6 +1,8 @@
 #ifndef INKLING_INKLING_H
 #define INKLING_INKLING_H
 #define INKLING_MAX_TENSOR_RANK 8
+#define INKLING_INDEX_MAX_NAME_LENGTH 128
+#define INKLING_INDEX_MAX_SHARD_LENGTH 64
 
 #include <stddef.h>
 #include <stdint.h>
@@ -80,5 +82,31 @@ int inkling_safetensors_read_tensor_data(
     void *destination,
     size_t destination_size
 );
+
+typedef struct {
+    char name[INKLING_INDEX_MAX_NAME_LENGTH];
+    char shard[INKLING_INDEX_MAX_SHARD_LENGTH];
+} InklingIndexEntry;
+
+typedef struct {
+    InklingIndexEntry *entries;
+    uint64_t count;
+    uint64_t capacity;
+    uint64_t total_size;
+} InklingIndex;
+
+int inkling_index_load(
+    const char *path,
+    InklingIndex *index
+);
+
+int inkling_index_find_shard(
+    const InklingIndex *index,
+    const char *tensor_name,
+    char *shard_out,
+    size_t shard_out_size
+);
+
+void inkling_index_free(InklingIndex *index);
 
 #endif
