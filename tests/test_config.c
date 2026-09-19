@@ -183,7 +183,7 @@ static void test_load_failures(void)
     );
 
     expect(
-        !inkling_config_load("tests/fixtures/inkling-small-config.json", NULL),
+        !inkling_config_load("tests/fixtures/checkpoint/config.json", NULL),
         "NULL config rejected"
     );
 
@@ -222,7 +222,7 @@ int main(int argc, char **argv)
     if (argc != 2) {
         fprintf(
             stderr,
-            "usage: %s <inkling-small-config.json>\n",
+            "usage: %s <config.json>\n",
             argv[0]
         );
         return EXIT_FAILURE;

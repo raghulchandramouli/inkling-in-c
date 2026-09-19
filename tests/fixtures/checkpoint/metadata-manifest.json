@@ -1,0 +1,81 @@
+{
+  "base_url": "https://huggingface.co/thinkingmachines/Inkling-Small-NVFP4/resolve/b6a99534467840620d411e4cd4ad5819b2610d9c/",
+  "files": {
+    "config.json": {
+      "sha256": "dcb5b1d587bce2f1e6b29833d739a724d05b4bfaa2dc1164fbe679330478ba53",
+      "size": 2214
+    },
+    "hf_quant_config.json": {
+      "sha256": "70f2ae087bb4ef851aea67b9938382af0bb9dacc6d19e8ebafbeeaa832a3e71e",
+      "size": 14102
+    },
+    "model.safetensors.index.json": {
+      "sha256": "2e3a00b15c5498687538e56f5adcb5784373079074636afb90ecefa1ca9baeee",
+      "size": 116141
+    }
+  },
+  "model": "thinkingmachines/Inkling-Small-NVFP4",
+  "revision": "b6a99534467840620d411e4cd4ad5819b2610d9c",
+  "shards": [
+    {
+      "fixture_size": 18728,
+      "header_size": 18720,
+      "name": "model-00001-of-00009.safetensors",
+      "sha256": "479502278cbe514288cbc01adfc873770502a9f43a54771cb440ccc91df06bc1"
+    },
+    {
+      "fixture_size": 12576,
+      "header_size": 12568,
+      "name": "model-00002-of-00009.safetensors",
+      "sha256": "3f12ffaf73d958a53e4dbd9af102d7130474372638b57569650371ebfd9f8383"
+    },
+    {
+      "fixture_size": 14592,
+      "header_size": 14584,
+      "name": "model-00003-of-00009.safetensors",
+      "sha256": "775512c80ac6555e47df05e2a7d31939c2be4ebe08ae827c975a20e93aa1efce"
+    },
+    {
+      "fixture_size": 17464,
+      "header_size": 17456,
+      "name": "model-00004-of-00009.safetensors",
+      "sha256": "4b7ef80c4435a5065a88d7098cf17bd9329112ee72475ef826a0b31d86b59bf8"
+    },
+    {
+      "fixture_size": 20784,
+      "header_size": 20776,
+      "name": "model-00005-of-00009.safetensors",
+      "sha256": "ec0627a1ad1fc26afe7350ffd691f9204e769d283e1952cfbf449727f2259767"
+    },
+    {
+      "fixture_size": 14744,
+      "header_size": 14736,
+      "name": "model-00006-of-00009.safetensors",
+      "sha256": "13928ed02b0c49c8c9193727a1816ddc0e2a7f0b9c1ad8fc9ae65cdedef133e0"
+    },
+    {
+      "fixture_size": 7800,
+      "header_size": 7792,
+      "name": "model-00007-of-00009.safetensors",
+      "sha256": "d8c5a11a684392157cffe7990e778c4147742431bc96c3fb01a95b051cd729ec"
+    },
+    {
+      "fixture_size": 14264,
+      "header_size": 14256,
+      "name": "model-00008-of-00009.safetensors",
+      "sha256": "937eed03657e42fb9529f6f55ad88d2d11e3c4b9de02257c1acc691f3ef65704"
+    },
+    {
+      "fixture_size": 17608,
+      "header_size": 17600,
+      "name": "model-00009-of-00009.safetensors",
+      "sha256": "0c659f2bb8a212f4c066fd476d3d2705ad1bfc0b6bc5347d8170298b34ca99c3"
+    },
+    {
+      "fixture_size": 20480,
+      "header_size": 20472,
+      "name": "mtp.safetensors",
+      "sha256": "b1c956e85079d14a1dbfddd4eae866bf381d490675b69d82b930ee7af06cc2be"
+    }
+  ]
+}

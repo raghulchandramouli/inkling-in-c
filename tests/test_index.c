@@ -49,6 +49,34 @@ static void expect_shard(
     }
 }
 
+static void expect_all_small_model_shards(const InklingIndex *index)
+{
+    for (unsigned int number = 1; number <= 9; number++) {
+        char expected[INKLING_INDEX_MAX_SHARD_LENGTH];
+
+        snprintf(
+            expected,
+            sizeof(expected),
+            "model-%05u-of-00009.safetensors",
+            number
+        );
+
+        int found = 0;
+
+        for (uint64_t entry = 0; entry < index->count; entry++) {
+            if (strcmp(index->entries[entry].shard, expected) == 0) {
+                found = 1;
+                break;
+            }
+        }
+
+        if (!found) {
+            fprintf(stderr, "FAIL: index does not reference %s\n", expected);
+            failures++;
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 3) {
@@ -66,40 +94,42 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    if (index.count != 1048) {
+    if (index.count != 1360) {
         fprintf(
             stderr,
-            "FAIL: expected 1048 tensors, got %" PRIu64 "\n",
+            "FAIL: expected 1360 tensors, got %" PRIu64 "\n",
             index.count
         );
         failures++;
     }
 
-    if (index.total_size != 531912898740ULL) {
+    if (index.total_size != 170733074592ULL) {
         fprintf(
             stderr,
-            "FAIL: expected total_size 531912898740, got %" PRIu64 "\n",
+            "FAIL: expected total_size 170733074592, got %" PRIu64 "\n",
             index.total_size
         );
         failures++;
     }
 
+    expect_all_small_model_shards(&index);
+
     expect_shard(
         &index,
         "model.llm.layers.0.attn.k_norm.weight",
-        "model-00009-of-00032.safetensors"
+        "model-00005-of-00009.safetensors"
     );
 
     expect_shard(
         &index,
         "model.llm.embed.weight",
-        "model-00030-of-00032.safetensors"
+        "model-00009-of-00009.safetensors"
     );
 
     expect_shard(
         &index,
         "model.visual.layers.linear_2.weight",
-        "model-00009-of-00032.safetensors"
+        "model-00003-of-00009.safetensors"
     );
 
     expect_shard(
@@ -184,8 +214,8 @@ int main(int argc, char **argv)
     if (tensor.dtype != INKLING_DTYPE_BF16 ||
         tensor.rank != 1 ||
         tensor.shape[0] != 128 ||
-        tensor.data_start != 3084 ||
-        tensor.data_end != 3340) {
+        tensor.data_start != 10506544 ||
+        tensor.data_end != 10506800) {
         fputs("incorrect tensor metadata from real shard\n", stderr);
         free(header);
         inkling_index_free(&index);

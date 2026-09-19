@@ -121,10 +121,10 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    if (header_size != 5816) {
+    if (header_size != 20776) {
         fprintf(
             stderr,
-            "expected 5816-byte real header, got %" PRIu64 "\n",
+            "expected 20776-byte real header, got %" PRIu64 "\n",
             header_size
         );
         free(header);
@@ -143,8 +143,8 @@ int main(int argc, char **argv)
     if (tensor.dtype != INKLING_DTYPE_BF16 ||
         tensor.rank != 1 ||
         tensor.shape[0] != 128 ||
-        tensor.data_start != 3084 ||
-        tensor.data_end != 3340) {
+        tensor.data_start != 10506544 ||
+        tensor.data_end != 10506800) {
         fputs("incorrect real Inkling tensor metadata\n", stderr);
         free(header);
         return EXIT_FAILURE;

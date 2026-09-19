@@ -8,10 +8,12 @@ TEST_SAFETENSORS := bin/test_safetensors
 TEST_CONFIG := bin/test_config
 TEST_INDEX := bin/test_index
 
-CONFIG := tests/fixtures/inkling-small-config.json
-INDEX := tests/fixtures/inkling-small-index.json
+CHECKPOINT_FIXTURES := tests/fixtures/checkpoint
+CONFIG := $(CHECKPOINT_FIXTURES)/config.json
+INDEX := $(CHECKPOINT_FIXTURES)/model.safetensors.index.json
 SAFETENSORS_FIXTURE := tests/fixtures/tiny.safetensors
-REAL_SAFETENSORS_HEADER := tests/fixtures/inkling-shard-09-header.safetensors
+REAL_SAFETENSORS_HEADER := \
+	$(CHECKPOINT_FIXTURES)/headers/model-00005-of-00009.safetensors
 
 INKLING_SOURCES := \
 	src/cli/inkling_run.c \
