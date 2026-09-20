@@ -45,14 +45,8 @@ Use sources in this order:
 Record all upstream commit hashes in `docs/SOURCES.md` before numerical kernel
 work begins. A moving `main` branch is not a reproducible oracle.
 
-Primary links:
-
-- https://huggingface.co/thinkingmachines/Inkling-Small-NVFP4
-- https://github.com/huggingface/transformers/blob/main/src/transformers/models/inkling/modeling_inkling.py
-- https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/models/inkling.py
-- https://github.com/vllm-project/vllm/tree/main/vllm/models/inkling
-- https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/examples/fp8_primer.html#nvfp4
-- https://github.com/FareedKhan-dev/kimi-k3-in-c
+Exact checkpoint and upstream revisions, immutable file links, source precedence,
+and the pin-update procedure are recorded in `docs/SOURCES.md`.
 
 ## 3. Repository audit: what exists now
 
@@ -63,9 +57,11 @@ include/inkling/inkling.h          public types and current I/O/config API
 src/cli/inkling_run.c              config-inspection CLI stub
 src/io/inkling_config.c            strict scalar config reader
 src/io/inkling_index.c             SafeTensors shard-index reader
+src/io/inkling_json.c/.h           strict shared JSON DOM parser
 src/io/inkling_safetensors.c       header scan and payload read
 tests/test_config.c                config validation
 tests/test_index.c                 index lookup and real-header lookup
+tests/test_json.c                  JSON syntax, bounds, and real-fixture tests
 tests/test_safetensors.c           synthetic payload and real-header metadata
 tests/fixtures/checkpoint/         pinned config/index/all shard headers
 tools/fetch_checkpoint_metadata.py metadata-only checkpoint fetcher
