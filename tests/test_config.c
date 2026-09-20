@@ -6,6 +6,40 @@
 
 #include "inkling/inkling.h"
 
+#define CONFIG_FIELDS_BEFORE_HIDDEN \
+    "\"model_max_length\":1024," \
+    "\"vocab_size\":1000," \
+    "\"hidden_size\":"
+
+#define CONFIG_FIELDS_AFTER_HIDDEN \
+    ",\"num_hidden_layers\":12," \
+    "\"num_attention_heads\":32," \
+    "\"num_key_value_heads\":8," \
+    "\"head_dim\":128," \
+    "\"sliding_window_size\":512," \
+    "\"d_rel\":16," \
+    "\"rel_extent\":128," \
+    "\"sconv_kernel_size\":4," \
+    "\"n_routed_experts\":256," \
+    "\"num_experts_per_tok\":6," \
+    "\"n_shared_experts\":2," \
+    "\"dense_intermediate_size\":16384," \
+    "\"intermediate_size\":2048," \
+    "\"rms_norm_eps\":0.000001," \
+    "\"route_scale\":8.0,"
+
+#define VALID_LOCAL_LAYERS \
+    "\"local_layer_ids\":[0,1,2,3,4,6,7,8,9,10]"
+
+#define VALID_TEXT_CONFIG \
+    CONFIG_FIELDS_BEFORE_HIDDEN "4096" \
+    CONFIG_FIELDS_AFTER_HIDDEN VALID_LOCAL_LAYERS
+
+#define VALID_CONFIG \
+    "{\"eos_token_id\":900,\"text_config\":{" \
+    VALID_TEXT_CONFIG \
+    "}}"
+
 static int failures = 0;
 
 static void expect(int condition, const char *what)
@@ -168,6 +202,48 @@ static int write_temp_file(char *path, size_t path_size, const char *content)
     return 1;
 }
 
+static int load_temp_config(
+    const char *content,
+    InklingConfig *config
+)
+{
+    char path[64];
+
+    if (!write_temp_file(path, sizeof(path), content)) {
+        return 0;
+    }
+
+    int loaded = inkling_config_load(path, config);
+    unlink(path);
+    return loaded;
+}
+
+static void test_structured_loading(void)
+{
+    InklingConfig config;
+
+    expect(
+        load_temp_config(VALID_CONFIG, &config),
+        "minimal structured config loads"
+    );
+    expect_u32(config.hidden_size, 4096, "structured hidden_size");
+    expect_u32(config.global_attention_stride, 6, "derived attention stride");
+
+    const char *shadowed =
+        "{"
+        "\"hidden_size\":1,"
+        "\"audio_config\":{\"hidden_size\":2},"
+        "\"eos_token_id\":900,"
+        "\"text_config\":{" VALID_TEXT_CONFIG "}"
+        "}";
+
+    expect(
+        load_temp_config(shadowed, &config),
+        "unrelated repeated field names do not shadow text config"
+    );
+    expect_u32(config.hidden_size, 4096, "nested text hidden_size wins");
+}
+
 static void test_load_failures(void)
 {
     InklingConfig config;
@@ -187,33 +263,77 @@ static void test_load_failures(void)
         "NULL config rejected"
     );
 
-    char path[64];
-    const char *missing_key = "{\"hidden_size\": 4096}";
-    const char *bad_number = "{\"hidden_size\": -4}";
-    const char *empty_object = "{}";
+    static const struct {
+        const char *content;
+        const char *what;
+    } cases[] = {
+        {
+            "{}",
+            "missing text config rejected"
+        },
+        {
+            "{\"eos_token_id\":900,\"text_config\":[]}",
+            "non-object text config rejected"
+        },
+        {
+            "{\"eos_token_id\":900,\"eos_token_id\":900,"
+            "\"text_config\":{" VALID_TEXT_CONFIG "}}",
+            "duplicate root key rejected"
+        },
+        {
+            "{\"eos_token_id\":900,\"text_config\":{"
+            VALID_TEXT_CONFIG ",\"hidden_size\":4096}}",
+            "duplicate text key rejected"
+        },
+        {
+            "{\"eos_token_id\":900,\"text_config\":{"
+            CONFIG_FIELDS_BEFORE_HIDDEN "\"4096\""
+            CONFIG_FIELDS_AFTER_HIDDEN VALID_LOCAL_LAYERS "}}",
+            "string integer rejected"
+        },
+        {
+            "{\"eos_token_id\":900,\"text_config\":{"
+            CONFIG_FIELDS_BEFORE_HIDDEN "4294967296"
+            CONFIG_FIELDS_AFTER_HIDDEN VALID_LOCAL_LAYERS "}}",
+            "uint32 overflow rejected"
+        },
+        {
+            "{\"eos_token_id\":900,\"text_config\":{"
+            CONFIG_FIELDS_BEFORE_HIDDEN "4096"
+            CONFIG_FIELDS_AFTER_HIDDEN
+            "\"local_layer_ids\":[0,1,2,3,4,4,6,7,8,9,10]}}",
+            "duplicate local layer rejected"
+        },
+        {
+            "{\"eos_token_id\":900,\"text_config\":{"
+            CONFIG_FIELDS_BEFORE_HIDDEN "4096"
+            CONFIG_FIELDS_AFTER_HIDDEN
+            "\"local_layer_ids\":[0,1,2,3,4,6,7,8,9,11]}}",
+            "irregular local layer pattern rejected"
+        },
+        {
+            "{\"eos_token_id\":900,\"text_config\":{"
+            CONFIG_FIELDS_BEFORE_HIDDEN "4096"
+            CONFIG_FIELDS_AFTER_HIDDEN
+            "\"local_layer_ids\":[0,1,2,3,4,6,7,8,9,12]}}",
+            "out-of-range local layer rejected"
+        },
+        {
+            "{\"text_config\":{" VALID_TEXT_CONFIG
+            ",\"eos_token_id\":900}}",
+            "nested eos token does not satisfy root field"
+        },
+        {
+            VALID_CONFIG " trailing",
+            "trailing content rejected"
+        }
+    };
 
-    if (write_temp_file(path, sizeof(path), missing_key)) {
+    for (size_t index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
         expect(
-            !inkling_config_load(path, &config),
-            "missing required key rejected"
+            !load_temp_config(cases[index].content, &config),
+            cases[index].what
         );
-        unlink(path);
-    }
-
-    if (write_temp_file(path, sizeof(path), bad_number)) {
-        expect(
-            !inkling_config_load(path, &config),
-            "negative number rejected"
-        );
-        unlink(path);
-    }
-
-    if (write_temp_file(path, sizeof(path), empty_object)) {
-        expect(
-            !inkling_config_load(path, &config),
-            "empty object rejected"
-        );
-        unlink(path);
     }
 }
 
@@ -230,6 +350,7 @@ int main(int argc, char **argv)
 
     test_real_config(argv[1]);
     test_validity();
+    test_structured_loading();
     test_load_failures();
 
     if (failures != 0) {

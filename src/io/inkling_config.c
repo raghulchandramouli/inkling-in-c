@@ -1,15 +1,14 @@
-#include <ctype.h>
-#include <errno.h>
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "inkling/inkling.h"
+#include "inkling_json.h"
 
 #define MAX_CONFIG_BYTES (1024L * 1024L)
 
-static char *read_text_file(const char *path)
+static char *read_text_file(const char *path, size_t *output_length)
 {
     FILE *file = fopen(path, "rb");
 
@@ -53,118 +52,133 @@ static char *read_text_file(const char *path)
         return NULL;
     }
 
-    text[length] = '\0';
+    text[(size_t)length] = '\0';
+    *output_length = (size_t)length;
     return text;
 }
 
-static const char *find_value(const char *json, const char *key)
-{
-    char pattern[96];
-
-    int length = snprintf(
-        pattern,
-        sizeof(pattern),
-        "\"%s\"",
-        key
-    );
-
-    if (length < 0 || (size_t)length >= sizeof(pattern)) {
-        return NULL;
-    }
-
-    const char *position = strstr(json, pattern);
-
-    if (position == NULL) {
-        return NULL;
-    }
-
-    position += length;
-
-    while (isspace((unsigned char)*position)) {
-        position++;
-    }
-
-    if (*position != ':') {
-        return NULL;
-    }
-
-    position++;
-
-    while (isspace((unsigned char)*position)) {
-        position++;
-    }
-
-    return position;
-}
-
-static int number_ends_here(const char *position)
-{
-    while (isspace((unsigned char)*position)) {
-        position++;
-    }
-
-    return *position == ',' ||
-           *position == '}' ||
-           *position == ']';
-}
-
 static int read_u32(
-    const char *json,
+    const InklingJsonValue *object,
     const char *key,
     uint32_t *output
 )
 {
-    const char *start = find_value(json, key);
+    const InklingJsonValue *value =
+        inkling_json_object_get(object, key);
+    uint64_t number = 0;
 
-    if (start == NULL || *start == '-') {
+    if (!inkling_json_number_u64(value, &number) ||
+        number > UINT32_MAX) {
         fprintf(stderr, "missing or invalid field: %s\n", key);
         return 0;
     }
 
-    errno = 0;
-
-    char *end = NULL;
-    unsigned long value = strtoul(start, &end, 10);
-
-    if (errno != 0 ||
-        end == start ||
-        value > UINT32_MAX ||
-        !number_ends_here(end)) {
-        fprintf(stderr, "missing or invalid field: %s\n", key);
-        return 0;
-    }
-
-    *output = (uint32_t)value;
+    *output = (uint32_t)number;
     return 1;
 }
 
 static int read_float(
-    const char *json,
+    const InklingJsonValue *object,
     const char *key,
     float *output
 )
 {
-    const char *start = find_value(json, key);
+    const InklingJsonValue *value =
+        inkling_json_object_get(object, key);
+    double number = 0.0;
 
-    if (start == NULL) {
+    if (!inkling_json_number_double(value, &number) ||
+        number < -(double)FLT_MAX ||
+        number > (double)FLT_MAX) {
         fprintf(stderr, "missing or invalid field: %s\n", key);
         return 0;
     }
 
-    errno = 0;
+    float converted = (float)number;
 
-    char *end = NULL;
-    float value = strtof(start, &end);
-
-    if (errno != 0 ||
-        end == start ||
-        !isfinite(value) ||
-        !number_ends_here(end)) {
+    if (!isfinite(converted)) {
         fprintf(stderr, "missing or invalid field: %s\n", key);
         return 0;
     }
 
-    *output = value;
+    *output = converted;
+    return 1;
+}
+
+static int read_global_attention_stride(
+    const InklingJsonValue *text_config,
+    uint32_t num_hidden_layers,
+    uint32_t *output
+)
+{
+    const InklingJsonValue *value =
+        inkling_json_object_get(text_config, "local_layer_ids");
+    size_t count = inkling_json_array_size(value);
+
+    if (inkling_json_type(value) != INKLING_JSON_ARRAY ||
+        count >= num_hidden_layers) {
+        fputs("missing or invalid field: local_layer_ids\n", stderr);
+        return 0;
+    }
+
+    unsigned char *local = calloc(num_hidden_layers, sizeof(*local));
+
+    if (local == NULL) {
+        fputs("cannot allocate local-layer map\n", stderr);
+        return 0;
+    }
+
+    int success = 1;
+
+    for (size_t index = 0; index < count; index++) {
+        uint64_t layer = 0;
+
+        if (!inkling_json_number_u64(
+                inkling_json_array_at(value, index),
+                &layer) ||
+            layer >= num_hidden_layers ||
+            local[(size_t)layer]) {
+            success = 0;
+            break;
+        }
+
+        local[(size_t)layer] = 1;
+    }
+
+    uint32_t stride = 0;
+
+    if (success) {
+        for (uint32_t layer = 0; layer < num_hidden_layers; layer++) {
+            if (!local[layer]) {
+                stride = layer + 1;
+                break;
+            }
+        }
+    }
+
+    if (stride == 0) {
+        success = 0;
+    }
+
+    if (success) {
+        for (uint32_t layer = 0; layer < num_hidden_layers; layer++) {
+            int expected_local = (layer + 1) % stride != 0;
+
+            if ((local[layer] != 0) != expected_local) {
+                success = 0;
+                break;
+            }
+        }
+    }
+
+    free(local);
+
+    if (!success) {
+        fputs("local_layer_ids is not a regular local/global pattern\n", stderr);
+        return 0;
+    }
+
+    *output = stride;
     return 1;
 }
 
@@ -177,61 +191,93 @@ int inkling_config_load(
         return 0;
     }
 
-    char *json = read_text_file(path);
+    size_t json_length = 0;
+    char *json = read_text_file(path, &json_length);
 
     if (json == NULL) {
         return 0;
     }
 
-    InklingConfig parsed = {0};
+    InklingJsonDocument document = {0};
+    InklingJsonError error;
 
-    /*
-     * local_layer_ids contains five local layers followed by
-     * one global layer, producing a six-layer repeating pattern.
-     */
-    parsed.global_attention_stride = 6;
-
-    int success =
-        read_u32(json, "model_max_length",
-                 &parsed.model_max_length) &&
-        read_u32(json, "vocab_size",
-                 &parsed.vocab_size) &&
-        read_u32(json, "eos_token_id",
-                 &parsed.eos_token_id) &&
-        read_u32(json, "hidden_size",
-                 &parsed.hidden_size) &&
-        read_u32(json, "num_hidden_layers",
-                 &parsed.num_hidden_layers) &&
-        read_u32(json, "num_attention_heads",
-                 &parsed.num_attention_heads) &&
-        read_u32(json, "num_key_value_heads",
-                 &parsed.num_key_value_heads) &&
-        read_u32(json, "head_dim",
-                 &parsed.head_dim) &&
-        read_u32(json, "sliding_window_size",
-                 &parsed.sliding_window_size) &&
-        read_u32(json, "d_rel",
-                 &parsed.relative_dimension) &&
-        read_u32(json, "rel_extent",
-                 &parsed.relative_extent) &&
-        read_u32(json, "sconv_kernel_size",
-                 &parsed.sconv_kernel_size) &&
-        read_u32(json, "n_routed_experts",
-                 &parsed.num_routed_experts) &&
-        read_u32(json, "num_experts_per_tok",
-                 &parsed.num_experts_per_token) &&
-        read_u32(json, "n_shared_experts",
-                 &parsed.num_shared_experts) &&
-        read_u32(json, "dense_intermediate_size",
-                 &parsed.dense_intermediate_size) &&
-        read_u32(json, "intermediate_size",
-                 &parsed.expert_intermediate_size) &&
-        read_float(json, "rms_norm_eps",
-                   &parsed.rms_norm_epsilon) &&
-        read_float(json, "route_scale",
-                   &parsed.route_scale);
+    if (!inkling_json_parse(
+            json,
+            json_length,
+            &document,
+            &error)) {
+        fprintf(
+            stderr,
+            "invalid config JSON at %zu:%zu: %s\n",
+            error.line,
+            error.column,
+            error.message
+        );
+        free(json);
+        return 0;
+    }
 
     free(json);
+
+    const InklingJsonValue *root = document.root;
+    const InklingJsonValue *text_config =
+        inkling_json_object_get(root, "text_config");
+
+    if (inkling_json_type(root) != INKLING_JSON_OBJECT ||
+        inkling_json_type(text_config) != INKLING_JSON_OBJECT) {
+        fputs("config must contain a text_config object\n", stderr);
+        inkling_json_document_free(&document);
+        return 0;
+    }
+
+    InklingConfig parsed = {0};
+
+    int success =
+        read_u32(text_config, "model_max_length",
+                 &parsed.model_max_length) &&
+        read_u32(text_config, "vocab_size",
+                 &parsed.vocab_size) &&
+        read_u32(root, "eos_token_id",
+                 &parsed.eos_token_id) &&
+        read_u32(text_config, "hidden_size",
+                 &parsed.hidden_size) &&
+        read_u32(text_config, "num_hidden_layers",
+                 &parsed.num_hidden_layers) &&
+        read_u32(text_config, "num_attention_heads",
+                 &parsed.num_attention_heads) &&
+        read_u32(text_config, "num_key_value_heads",
+                 &parsed.num_key_value_heads) &&
+        read_u32(text_config, "head_dim",
+                 &parsed.head_dim) &&
+        read_u32(text_config, "sliding_window_size",
+                 &parsed.sliding_window_size) &&
+        read_u32(text_config, "d_rel",
+                 &parsed.relative_dimension) &&
+        read_u32(text_config, "rel_extent",
+                 &parsed.relative_extent) &&
+        read_u32(text_config, "sconv_kernel_size",
+                 &parsed.sconv_kernel_size) &&
+        read_u32(text_config, "n_routed_experts",
+                 &parsed.num_routed_experts) &&
+        read_u32(text_config, "num_experts_per_tok",
+                 &parsed.num_experts_per_token) &&
+        read_u32(text_config, "n_shared_experts",
+                 &parsed.num_shared_experts) &&
+        read_u32(text_config, "dense_intermediate_size",
+                 &parsed.dense_intermediate_size) &&
+        read_u32(text_config, "intermediate_size",
+                 &parsed.expert_intermediate_size) &&
+        read_float(text_config, "rms_norm_eps",
+                   &parsed.rms_norm_epsilon) &&
+        read_float(text_config, "route_scale",
+                   &parsed.route_scale) &&
+        read_global_attention_stride(
+            text_config,
+            parsed.num_hidden_layers,
+            &parsed.global_attention_stride
+        );
+
+    inkling_json_document_free(&document);
 
     if (!success || !inkling_config_is_valid(&parsed)) {
         return 0;

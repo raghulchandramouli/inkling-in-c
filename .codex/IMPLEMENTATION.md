@@ -55,7 +55,7 @@ Current files:
 ```text
 include/inkling/inkling.h          public types and current I/O/config API
 src/cli/inkling_run.c              config-inspection CLI stub
-src/io/inkling_config.c            strict scalar config reader
+src/io/inkling_config.c            typed nested config reader
 src/io/inkling_index.c             SafeTensors shard-index reader
 src/io/inkling_json.c/.h           strict shared JSON DOM parser
 src/io/inkling_safetensors.c       header scan and payload read

@@ -18,7 +18,8 @@ REAL_SAFETENSORS_HEADER := \
 
 INKLING_SOURCES := \
 	src/cli/inkling_run.c \
-	src/io/inkling_config.c
+	src/io/inkling_config.c \
+	src/io/inkling_json.c
 
 SAFETENSORS_TEST_SOURCES := \
 	tests/test_safetensors.c \
@@ -26,7 +27,8 @@ SAFETENSORS_TEST_SOURCES := \
 
 CONFIG_TEST_SOURCES := \
 	tests/test_config.c \
-	src/io/inkling_config.c
+	src/io/inkling_config.c \
+	src/io/inkling_json.c
 
 INDEX_TEST_SOURCES := \
 	tests/test_index.c \
