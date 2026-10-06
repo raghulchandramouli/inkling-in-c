@@ -56,12 +56,13 @@ Current files:
 include/inkling/inkling.h          public types and current I/O/config API
 src/cli/inkling_run.c              config-inspection CLI stub
 src/io/inkling_config.c            typed nested config reader; owns exact local-layer IDs
-src/io/inkling_index.c             SafeTensors shard-index reader
+src/io/inkling_index.c             FNV-1a tensor catalogue and atomic shard binding
 src/io/inkling_json.c/.h           strict shared JSON DOM parser
 src/io/inkling_safetensors.c       header scan and payload read
 tests/test_config.c                config validation
 tests/test_index.c                 index lookup and real-header lookup
 tests/test_json.c                  JSON syntax, bounds, and real-fixture tests
+tests/test_catalogue.c             all 1,360 tensors, dtypes, collisions, and corrupt shards
 tests/test_safetensors.c           synthetic payload and real-header metadata
 tests/fixtures/checkpoint/         pinned config/index/all shard headers
 tools/fetch_checkpoint_metadata.py metadata-only checkpoint fetcher
@@ -78,10 +79,11 @@ an opaque external runtime.
 `b6a99534467840620d411e4cd4ad5819b2610d9c` of the Small NVFP4 checkpoint. It
 contains the config, quantization config, index, and metadata-only headers for all
 9 model shards plus the separate `mtp.safetensors` file. The index contains 1,360
-tensors and reports `total_size == 170733074592` for the model shards. Tests assert
-that identity and resolve a real BF16 tensor through the index into its pinned
-header. Regenerate the fixtures with `tools/fetch_checkpoint_metadata.py`; ordinary
-tests remain network-free.
+tensors and reports `total_size == 170733074592` including MTP. The nine model
+shards contain 166269249680 payload bytes; MTP contains 4463824912 bytes. Tests
+validate and resolve every tensor against its pinned header, including scales
+and original-shape auxiliaries across shards. Regenerate the fixtures with
+`tools/fetch_checkpoint_metadata.py`; ordinary tests remain network-free.
 
 ## 4. Target model facts
 
@@ -237,12 +239,15 @@ fields are fatal configuration errors.
 
 ### Tensor catalogue
 
-Replace the linear index lookup with an open-addressed FNV-1a hash table once the
-correct Small NVFP4 fixture is installed. Each `InklingTensor` stores:
+`InklingIndex` is the tensor catalogue and uses an open-addressed FNV-1a hash
+table with linear probing and a load factor no greater than 0.5. Names are owned
+inline, so lookup pointers remain valid until the catalogue is freed. Each
+`InklingTensor` stores:
 
 ```c
 typedef struct {
-    const char *name;
+    char name[INKLING_INDEX_MAX_NAME_LENGTH];
+    char shard[INKLING_INDEX_MAX_SHARD_LENGTH];
     InklingDataType dtype;
     uint32_t rank;
     uint64_t shape[INKLING_MAX_TENSOR_RANK];
@@ -254,12 +259,18 @@ typedef struct {
 
 All additions and multiplications used to compute offsets, element counts, and byte
 sizes require checked overflow. SafeTensors offsets are relative to the data section,
-which begins at `8 + header_size`. Validate intervals against the actual shard size,
-reject overlap, and reject a dtype/shape/byte-count mismatch.
+which begins at `8 + header_size`. `inkling_index_load_shard` checks intervals
+against the actual file length and rejects overlaps and dtype/shape/byte-count
+mismatches before publishing metadata. Until a shard is bound, its tensor dtype
+is UNKNOWN. `inkling_index_bind_header` is the explicit-size entry point for
+metadata-only fixtures or callers supplying a trusted shard length; it does not
+prove that payload bytes exist on disk.
 
-Add dtypes required by the pinned headers. At minimum expect F32, BF16, packed byte
-storage for FP4 payloads, scale tensors, and integer `original_shape` metadata. Derive
-the exact dtype enum set from a full header census; do not guess from tensor names.
+The full pinned census contains BF16 (968 tensors, 2 bytes per stored element),
+F32 (158, 4 bytes), I64 (78, 8 bytes), F8_E4M3 (78, 1 byte), and U8 (78, 1 byte).
+U8 shapes describe stored bytes, each containing two FP4 nibbles for quantized
+weights. I64 `original_shape` describes the logical unpacked dimensions. No dtype
+is inferred from a tensor name, and numerical FP4/FP8 decoding remains Phase B.
 
 ### Model and execution context
 
@@ -483,7 +494,8 @@ softmax for greedy argmax.
 
 ## 9. Memory and storage design
 
-The checkpoint payload is about 171 GB plus the optional 4.46 GB MTP file. A CPU
+The nine model shards contain about 166.27 GB, plus the optional 4.46 GB MTP file
+(170.73 GB combined). A CPU
 engine should support multiple memory budgets with identical math:
 
 - Keep metadata, small norms, biases, convolution kernels, router weights, and
@@ -688,7 +700,7 @@ network, checkpoint, Python package installation, or model weights.
 1. [x] Pin upstream revisions in `docs/SOURCES.md`.
 2. [x] Replace the mismatched index/header fixtures with Small NVFP4 metadata.
 3. [x] Implement a real nested JSON parser and exact local-layer list.
-4. [ ] Extend dtype support and build a hash-indexed tensor catalogue.
+4. [x] Extend dtype support and build a hash-indexed tensor catalogue.
 5. [ ] Add full checkpoint census and `--verify-model`.
 
 Exit: the program can prove it has the correct checkpoint and print every required

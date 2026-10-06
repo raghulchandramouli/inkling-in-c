@@ -170,7 +170,7 @@ int main(int argc, char **argv)
 
     /*
      * End to end: resolve a tensor through the index, then prove it
-     * exists in the real shard header fixture (shard 09 of 32).
+     * exists in the pinned Small NVFP4 shard header fixture (shard 05 of 09).
      */
     const char *resolved_name =
         "model.llm.layers.0.attn.k_norm.weight";
