@@ -586,12 +586,26 @@ Diagnostics:
 --dump-cache-trace DIR
 --out PATH                   JSON run report
 --verify-model
+--with-mtp                   verification: require the otherwise optional MTP shard
+--metadata-only              verification: pinned headers/ fixtures, NOT full files
 --list-presets
 ```
 
 Exit codes: `0` success, `1` load/compute failure, `2` usage/config failure,
 `3` checkpoint verification failure, `4` incomplete/corrupt streamed expert read.
 No partial expert read may silently contribute zeros.
+
+Phase A verification is implemented as `inkling MODEL_DIR --verify-model`.
+It requires the pinned index (including all MTP entries) and config/quantization
+metadata, validates all required families, and prints a sorted, mutually
+exclusive tensor/byte census and tensor listing. An absent MTP file is explicitly
+skipped unless `--with-mtp` is set; a present file is always validated. Unknown
+families are rejected. Normal mode checks actual shard lengths; the explicit
+`--metadata-only` mode reads `headers/` with the pinned original payload extents
+and does not claim to validate full files. Identity is the pinned metadata
+contract, not cryptographic weight authentication; no tensor payload is read,
+including the values inside `.original_shape`. Byte ranges are relative to the
+start of the shard payload. The original config-only CLI remains available.
 
 ## 12. Validation ladder
 
@@ -701,7 +715,7 @@ network, checkpoint, Python package installation, or model weights.
 2. [x] Replace the mismatched index/header fixtures with Small NVFP4 metadata.
 3. [x] Implement a real nested JSON parser and exact local-layer list.
 4. [x] Extend dtype support and build a hash-indexed tensor catalogue.
-5. [ ] Add full checkpoint census and `--verify-model`.
+5. [x] Add full checkpoint census and `--verify-model`.
 
 Exit: the program can prove it has the correct checkpoint and print every required
 tensor's dtype, shape, shard, and byte range without loading tensor payloads.

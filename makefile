@@ -20,7 +20,10 @@ REAL_SAFETENSORS_HEADER := \
 INKLING_SOURCES := \
 	src/cli/inkling_run.c \
 	src/io/inkling_config.c \
-	src/io/inkling_json.c
+	src/io/inkling_json.c \
+	src/io/inkling_index.c \
+	src/io/inkling_safetensors.c \
+	src/io/inkling_verify.c
 
 SAFETENSORS_TEST_SOURCES := \
 	tests/test_safetensors.c \
@@ -52,7 +55,7 @@ JSON_TEST_SOURCES := \
 
 all: $(BIN)
 
-$(BIN): $(INKLING_SOURCES) include/inkling/inkling.h
+$(BIN): $(INKLING_SOURCES) include/inkling/inkling.h src/io/inkling_json.h
 	mkdir -p bin
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(INKLING_SOURCES) -o $(BIN)
 
@@ -87,6 +90,7 @@ test: $(BIN) $(TEST_SAFETENSORS) $(TEST_CONFIG) $(TEST_INDEX) $(TEST_JSON) $(TES
 	./$(TEST_INDEX) $(INDEX) $(REAL_SAFETENSORS_HEADER)
 	./$(TEST_JSON) $(CONFIG) $(INDEX)
 	./$(TEST_CATALOGUE) $(CHECKPOINT_FIXTURES)
+	python3 tests/test_verify.py $(BIN) $(CHECKPOINT_FIXTURES)
 
 clean:
 	rm -f $(BIN) $(TEST_SAFETENSORS) $(TEST_CONFIG) $(TEST_INDEX) $(TEST_JSON) $(TEST_CATALOGUE)

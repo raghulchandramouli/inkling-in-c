@@ -160,4 +160,10 @@ int inkling_index_find_shard(
 
 void inkling_index_free(InklingIndex *index);
 
+/* Header-only census of the pinned Small NVFP4 metadata contract. MTP is
+ * optional unless with_mtp is set. metadata_only uses headers/ fixtures and
+ * pinned payload lengths, never claims that full shard files were checked.
+ * Prints deterministic results to stdout, diagnostics to stderr. */
+int inkling_verify_model(const char *directory, int with_mtp, int metadata_only);
+
 #endif

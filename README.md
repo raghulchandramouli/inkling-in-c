@@ -14,5 +14,34 @@ catalogue with `inkling_index_free` before reloading or discarding it.
 
 The checked-in headers contain no weights. Tests explicitly supply their declared
 payload extent to `inkling_index_bind_header`; the real-file loader rejects these
-header-only files as truncated. Full model verification and `--verify-model` are
-the next milestone.
+header-only files as truncated.
+
+## Verify a local checkpoint
+
+```sh
+make
+bin/inkling MODEL_DIR --verify-model
+bin/inkling MODEL_DIR --verify-model --with-mtp
+# Offline header fixtures only (does NOT verify full shard files):
+bin/inkling tests/fixtures/checkpoint --verify-model --metadata-only --with-mtp
+```
+
+Verification reads metadata and shard headers, never tensor payloads. It checks
+the pinned Small NVFP4 architecture, quantization settings/exclusions, every
+required tensor's stored dtype and shape, index/header agreement, actual file
+bounds, and the byte census. Unknown tensor families are rejected. MTP may be
+absent unless `--with-mtp` is requested; a present MTP file is always validated.
+The index must still contain its pinned MTP entries when that file is omitted.
+
+The deterministic report lists every verified tensor's dtype, shape, shard and
+half-open byte range, relative to its shard's payload start (`8 + header_size`).
+Classes are mutually exclusive: BF16/F32 trunk, packed routed weights, scales
+and auxiliaries, embeddings/unembed, vision, audio, and MTP. With MTP, totals are
+1,360 tensors / 170,733,074,592 bytes; without it, 1,200 / 166,269,249,680.
+Usage errors return 2 and verification failures return 3.
+
+This verifies the metadata contract of the revision in `docs/SOURCES.md`, not
+weight hashes or the payload values in `.original_shape`. Metadata-only mode uses
+the pinned original shard lengths and clearly labels its limited result. Tests
+also exercise actual-file mode with sparse local shards, without downloading or
+allocating weights. The legacy `bin/inkling config.json` command is unchanged.
