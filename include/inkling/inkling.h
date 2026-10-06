@@ -36,7 +36,8 @@ typedef struct {
     uint32_t head_dim;
 
     uint32_t sliding_window_size;
-    uint32_t global_attention_stride;
+    uint32_t *local_layer_ids;
+    size_t num_local_layers;
     uint32_t relative_dimension;
     uint32_t relative_extent;
     uint32_t sconv_kernel_size;
@@ -52,8 +53,11 @@ typedef struct {
     float route_scale;
 } InklingConfig;
 
+/* On success, owns local_layer_ids; release with inkling_config_free before
+ * reloading or discarding. Failure leaves config unchanged. Do not free copies. */
 int inkling_config_load(const char *path, InklingConfig *config);
 int inkling_config_is_valid(const InklingConfig *config);
+void inkling_config_free(InklingConfig *config);
 
 int inkling_safetensors_header_size(
     const char *path,

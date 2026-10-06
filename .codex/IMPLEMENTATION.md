@@ -55,7 +55,7 @@ Current files:
 ```text
 include/inkling/inkling.h          public types and current I/O/config API
 src/cli/inkling_run.c              config-inspection CLI stub
-src/io/inkling_config.c            typed nested config reader
+src/io/inkling_config.c            typed nested config reader; owns exact local-layer IDs
 src/io/inkling_index.c             SafeTensors shard-index reader
 src/io/inkling_json.c/.h           strict shared JSON DOM parser
 src/io/inkling_safetensors.c       header scan and payload read
@@ -225,11 +225,15 @@ Extend `InklingConfig` instead of using constants hidden in kernels. Parse:
 - vision, audio, and MTP sub-configs into separate structs, even while execution
   for those branches is disabled.
 
-The config reader must parse nested JSON and arrays correctly. The current `strstr`
-reader can confuse repeated keys in nested objects and cannot validate the local
-layer list. Replace it with a small checked JSON tokenizer/parser or vendor one tiny
-C JSON parser with its license. Missing, duplicate, wrong-type, overflowing, or
-inconsistent required fields are fatal configuration errors.
+The config reader uses the shared strict JSON DOM parser for nested objects and
+arrays. `InklingConfig.local_layer_ids` preserves the exact text-config array and
+its order, with `num_local_layers` recording its length. Irregular, unsorted,
+all-local, and all-global layouts are supported; duplicates and out-of-range IDs
+are rejected. There is no derived attention stride. A successful config load owns
+the array; call `inkling_config_free` before reloading or discarding it. Failed
+loads leave the caller's config unchanged. Extend this parser for the remaining
+fields above. Missing, duplicate, wrong-type, overflowing, or inconsistent required
+fields are fatal configuration errors.
 
 ### Tensor catalogue
 
@@ -681,11 +685,11 @@ network, checkpoint, Python package installation, or model weights.
 
 ### Phase A: make metadata trustworthy
 
-1. Pin upstream revisions in `docs/SOURCES.md`.
-2. Replace the mismatched index/header fixtures with Small NVFP4 metadata.
-3. Implement a real nested JSON parser and exact local-layer list.
-4. Extend dtype support and build a hash-indexed tensor catalogue.
-5. Add full checkpoint census and `--verify-model`.
+1. [x] Pin upstream revisions in `docs/SOURCES.md`.
+2. [x] Replace the mismatched index/header fixtures with Small NVFP4 metadata.
+3. [x] Implement a real nested JSON parser and exact local-layer list.
+4. [ ] Extend dtype support and build a hash-indexed tensor catalogue.
+5. [ ] Add full checkpoint census and `--verify-model`.
 
 Exit: the program can prove it has the correct checkpoint and print every required
 tensor's dtype, shape, shard, and byte range without loading tensor payloads.

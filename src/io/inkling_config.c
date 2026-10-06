@@ -105,10 +105,9 @@ static int read_float(
     return 1;
 }
 
-static int read_global_attention_stride(
+static int read_local_layer_ids(
     const InklingJsonValue *text_config,
-    uint32_t num_hidden_layers,
-    uint32_t *output
+    InklingConfig *config
 )
 {
     const InklingJsonValue *value =
@@ -116,19 +115,24 @@ static int read_global_attention_stride(
     size_t count = inkling_json_array_size(value);
 
     if (inkling_json_type(value) != INKLING_JSON_ARRAY ||
-        count >= num_hidden_layers) {
+        count > config->num_hidden_layers ||
+        count > SIZE_MAX / sizeof(*config->local_layer_ids)) {
         fputs("missing or invalid field: local_layer_ids\n", stderr);
         return 0;
     }
 
-    unsigned char *local = calloc(num_hidden_layers, sizeof(*local));
+    if (count == 0) {
+        return 1;
+    }
 
-    if (local == NULL) {
-        fputs("cannot allocate local-layer map\n", stderr);
+    config->local_layer_ids = malloc(count * sizeof(*config->local_layer_ids));
+
+    if (config->local_layer_ids == NULL) {
+        fputs("cannot allocate local-layer list\n", stderr);
         return 0;
     }
 
-    int success = 1;
+    config->num_local_layers = count;
 
     for (size_t index = 0; index < count; index++) {
         uint64_t layer = 0;
@@ -136,49 +140,14 @@ static int read_global_attention_stride(
         if (!inkling_json_number_u64(
                 inkling_json_array_at(value, index),
                 &layer) ||
-            layer >= num_hidden_layers ||
-            local[(size_t)layer]) {
-            success = 0;
-            break;
+            layer >= config->num_hidden_layers) {
+            fputs("invalid local layer ID\n", stderr);
+            return 0;
         }
 
-        local[(size_t)layer] = 1;
+        config->local_layer_ids[index] = (uint32_t)layer;
     }
 
-    uint32_t stride = 0;
-
-    if (success) {
-        for (uint32_t layer = 0; layer < num_hidden_layers; layer++) {
-            if (!local[layer]) {
-                stride = layer + 1;
-                break;
-            }
-        }
-    }
-
-    if (stride == 0) {
-        success = 0;
-    }
-
-    if (success) {
-        for (uint32_t layer = 0; layer < num_hidden_layers; layer++) {
-            int expected_local = (layer + 1) % stride != 0;
-
-            if ((local[layer] != 0) != expected_local) {
-                success = 0;
-                break;
-            }
-        }
-    }
-
-    free(local);
-
-    if (!success) {
-        fputs("local_layer_ids is not a regular local/global pattern\n", stderr);
-        return 0;
-    }
-
-    *output = stride;
     return 1;
 }
 
@@ -271,15 +240,12 @@ int inkling_config_load(
                    &parsed.rms_norm_epsilon) &&
         read_float(text_config, "route_scale",
                    &parsed.route_scale) &&
-        read_global_attention_stride(
-            text_config,
-            parsed.num_hidden_layers,
-            &parsed.global_attention_stride
-        );
+        read_local_layer_ids(text_config, &parsed);
 
     inkling_json_document_free(&document);
 
     if (!success || !inkling_config_is_valid(&parsed)) {
+        inkling_config_free(&parsed);
         return 0;
     }
 
@@ -330,10 +296,38 @@ int inkling_config_is_valid(const InklingConfig *config)
         return 0;
     }
 
-    if (config->rms_norm_epsilon <= 0.0f ||
+    if (config->num_local_layers > config->num_hidden_layers ||
+        (config->num_local_layers != 0 && config->local_layer_ids == NULL)) {
+        return 0;
+    }
+
+    for (size_t index = 0; index < config->num_local_layers; index++) {
+        if (config->local_layer_ids[index] >= config->num_hidden_layers) {
+            return 0;
+        }
+        /* ponytail: quadratic duplicate check; use a set if layer counts grow. */
+        for (size_t previous = 0; previous < index; previous++) {
+            if (config->local_layer_ids[previous] == config->local_layer_ids[index]) {
+                return 0;
+            }
+        }
+    }
+
+    if (!isfinite(config->rms_norm_epsilon) ||
+        !isfinite(config->route_scale) ||
+        config->rms_norm_epsilon <= 0.0f ||
         config->route_scale <= 0.0f) {
         return 0;
     }
 
     return 1;
+}
+
+void inkling_config_free(InklingConfig *config)
+{
+    if (config != NULL) {
+        free(config->local_layer_ids);
+        config->local_layer_ids = NULL;
+        config->num_local_layers = 0;
+    }
 }

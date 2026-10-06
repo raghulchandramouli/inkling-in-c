@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -90,10 +91,11 @@ static void test_real_config(const char *path)
 {
     InklingConfig config;
 
-    expect(
-        inkling_config_load(path, &config),
-        "real config loads"
-    );
+    int loaded = inkling_config_load(path, &config);
+    expect(loaded, "real config loads");
+    if (!loaded) {
+        return;
+    }
 
     expect_u32(config.model_max_length, 1048576, "model_max_length");
     expect_u32(config.vocab_size, 201024, "vocab_size");
@@ -104,7 +106,15 @@ static void test_real_config(const char *path)
     expect_u32(config.num_key_value_heads, 8, "num_key_value_heads");
     expect_u32(config.head_dim, 128, "head_dim");
     expect_u32(config.sliding_window_size, 512, "sliding_window_size");
-    expect_u32(config.global_attention_stride, 6, "global_attention_stride");
+    static const uint32_t local_layers[] = {
+        0,1,2,3,4,6,7,8,9,10,12,13,14,15,16,18,19,20,21,22,
+        24,25,26,27,28,30,31,32,33,34,36,37,38,39,40
+    };
+    expect(
+        config.num_local_layers == sizeof(local_layers) / sizeof(local_layers[0]) &&
+        memcmp(config.local_layer_ids, local_layers, sizeof(local_layers)) == 0,
+        "exact real local-layer list preserved"
+    );
     expect_u32(config.relative_dimension, 16, "relative_dimension");
     expect_u32(config.relative_extent, 1024, "relative_extent");
     expect_u32(config.sconv_kernel_size, 4, "sconv_kernel_size");
@@ -115,6 +125,11 @@ static void test_real_config(const char *path)
     expect_u32(config.expert_intermediate_size, 2048, "expert_intermediate_size");
     expect_float(config.rms_norm_epsilon, 1e-6f, "rms_norm_epsilon");
     expect_float(config.route_scale, 8.0f, "route_scale");
+    inkling_config_free(&config);
+    expect(config.local_layer_ids == NULL && config.num_local_layers == 0,
+           "config free clears owned list");
+    inkling_config_free(&config);
+    inkling_config_free(NULL);
 }
 
 static void test_validity(void)
@@ -129,7 +144,6 @@ static void test_validity(void)
         .num_key_value_heads = 8,
         .head_dim = 128,
         .sliding_window_size = 512,
-        .global_attention_stride = 6,
         .relative_dimension = 16,
         .relative_extent = 128,
         .sconv_kernel_size = 4,
@@ -178,6 +192,27 @@ static void test_validity(void)
     copy = config;
     copy.route_scale = -1.0f;
     expect(!inkling_config_is_valid(&copy), "negative route scale rejected");
+
+    copy = config;
+    copy.rms_norm_epsilon = NAN;
+    expect(!inkling_config_is_valid(&copy), "NaN epsilon rejected");
+
+    copy = config;
+    copy.route_scale = INFINITY;
+    expect(!inkling_config_is_valid(&copy), "infinite route scale rejected");
+
+    copy = config;
+    copy.num_local_layers = 1;
+    expect(!inkling_config_is_valid(&copy), "missing local-layer storage rejected");
+
+    uint32_t local_layers[] = {3, 3};
+    copy.local_layer_ids = local_layers;
+    copy.num_local_layers = 2;
+    expect(!inkling_config_is_valid(&copy), "duplicate layer in public config rejected");
+    local_layers[1] = config.num_hidden_layers;
+    expect(!inkling_config_is_valid(&copy), "out-of-range layer in public config rejected");
+    copy.num_local_layers = (size_t)config.num_hidden_layers + 1;
+    expect(!inkling_config_is_valid(&copy), "too many local layers rejected");
 }
 
 static int write_temp_file(char *path, size_t path_size, const char *content)
@@ -220,19 +255,21 @@ static int load_temp_config(
 
 static void test_structured_loading(void)
 {
-    InklingConfig config;
+    InklingConfig config = {0};
 
     expect(
         load_temp_config(VALID_CONFIG, &config),
         "minimal structured config loads"
     );
     expect_u32(config.hidden_size, 4096, "structured hidden_size");
-    expect_u32(config.global_attention_stride, 6, "derived attention stride");
+    expect(config.num_local_layers == 10, "structured local-layer count");
+    inkling_config_free(&config);
 
     const char *shadowed =
         "{"
         "\"hidden_size\":1,"
         "\"audio_config\":{\"hidden_size\":2},"
+        "\"mtp_config\":{\"local_layer_ids\":[11]},"
         "\"eos_token_id\":900,"
         "\"text_config\":{" VALID_TEXT_CONFIG "}"
         "}";
@@ -242,11 +279,68 @@ static void test_structured_loading(void)
         "unrelated repeated field names do not shadow text config"
     );
     expect_u32(config.hidden_size, 4096, "nested text hidden_size wins");
+    expect(config.num_local_layers == 10 && config.local_layer_ids[0] == 0,
+           "MTP local layers do not shadow text local layers");
+    inkling_config_free(&config);
+}
+
+static void test_local_layer_lists(void)
+{
+    static const struct {
+        const char *json;
+        size_t count;
+        uint32_t ids[12];
+    } cases[] = {
+        {"[0,1,2,3,4,6,7,8,9,11]", 10, {0,1,2,3,4,6,7,8,9,11}},
+        {"[11,0,5]", 3, {11,0,5}},
+        {"[]", 0, {0}},
+        {"[0,1,2,3,4,5,6,7,8,9,10,11]", 12, {0,1,2,3,4,5,6,7,8,9,10,11}}
+    };
+
+    for (size_t index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+        char json[1024];
+        snprintf(json, sizeof(json),
+                 "{\"eos_token_id\":900,\"text_config\":{"
+                 CONFIG_FIELDS_BEFORE_HIDDEN "4096" CONFIG_FIELDS_AFTER_HIDDEN
+                 "\"local_layer_ids\":%s}}", cases[index].json);
+        InklingConfig config = {0};
+        int loaded = load_temp_config(json, &config);
+        expect(loaded, "valid explicit local-layer layout accepted");
+        if (loaded) {
+            expect(config.num_local_layers == cases[index].count,
+                   "explicit local-layer count preserved");
+            expect(config.num_local_layers == cases[index].count &&
+                   (cases[index].count == 0 ||
+                    memcmp(config.local_layer_ids, cases[index].ids,
+                           cases[index].count * sizeof(uint32_t)) == 0),
+                   "explicit local-layer order and IDs preserved");
+        }
+        inkling_config_free(&config);
+    }
+
+    static const char *invalid[] = {
+        "null", "0", "{}", "[\"0\"]", "[true]", "[null]", "[[]]",
+        "[-1]", "[0.5]", "[1e0]", "[12]", "[4294967296]",
+        "[18446744073709551616]", "[11,0,11]",
+        "[0,1,2,3,4,5,6,7,8,9,10,11,0]"
+    };
+    for (size_t index = 0; index < sizeof(invalid) / sizeof(invalid[0]); index++) {
+        char json[1024];
+        snprintf(json, sizeof(json),
+                 "{\"eos_token_id\":900,\"text_config\":{"
+                 CONFIG_FIELDS_BEFORE_HIDDEN "4096" CONFIG_FIELDS_AFTER_HIDDEN
+                 "\"local_layer_ids\":%s}}", invalid[index]);
+        InklingConfig config = {.hidden_size = 123};
+        expect(!load_temp_config(json, &config), "invalid local-layer list rejected");
+        expect(config.hidden_size == 123 && config.local_layer_ids == NULL &&
+               config.num_local_layers == 0, "failed load leaves config unchanged");
+        inkling_config_free(&config);
+    }
 }
 
 static void test_load_failures(void)
 {
-    InklingConfig config;
+    InklingConfig config = {0};
 
     expect(
         !inkling_config_load("/nonexistent/config.json", &config),
@@ -308,8 +402,8 @@ static void test_load_failures(void)
             "{\"eos_token_id\":900,\"text_config\":{"
             CONFIG_FIELDS_BEFORE_HIDDEN "4096"
             CONFIG_FIELDS_AFTER_HIDDEN
-            "\"local_layer_ids\":[0,1,2,3,4,6,7,8,9,11]}}",
-            "irregular local layer pattern rejected"
+            "\"other_layers\":[0,1,2,3,4,6,7,8,9,11]}}",
+            "missing local-layer list rejected"
         },
         {
             "{\"eos_token_id\":900,\"text_config\":{"
@@ -351,6 +445,7 @@ int main(int argc, char **argv)
     test_real_config(argv[1]);
     test_validity();
     test_structured_loading();
+    test_local_layer_lists();
     test_load_failures();
 
     if (failures != 0) {
