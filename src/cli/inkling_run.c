@@ -36,8 +36,13 @@ int main(int argc, char **argv)
     printf("local window:        %" PRIu32 " tokens\n",
            config.sliding_window_size);
 
-    printf("global attention:    every %" PRIu32 "th layer\n",
-           config.global_attention_stride);
+    printf("local layers:        %zu [", config.num_local_layers);
+    for (size_t index = 0; index < config.num_local_layers; index++) {
+        printf("%s%" PRIu32, index == 0 ? "" : ",", config.local_layer_ids[index]);
+    }
+    puts("]");
+    printf("global layers:       %zu\n",
+           (size_t)config.num_hidden_layers - config.num_local_layers);
 
     printf("routed experts:      %" PRIu32 " of %" PRIu32 "\n",
            config.num_experts_per_token,
@@ -52,5 +57,6 @@ int main(int argc, char **argv)
     printf("maximum context:     %" PRIu32 " tokens\n",
            config.model_max_length);
 
+    inkling_config_free(&config);
     return EXIT_SUCCESS;
 }

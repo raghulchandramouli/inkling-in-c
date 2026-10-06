@@ -41,8 +41,9 @@ When sources disagree, use them in this order:
   [`tests/fixtures/checkpoint/hf_quant_config.json`](../tests/fixtures/checkpoint/hf_quant_config.json)
 
 Use this revision for all fixture generation and real-checkpoint validation. Its
-index contains 1,360 tensors in nine model shards plus `mtp.safetensors`; model
-shard payload size is `170733074592` bytes. The checked-in fixtures contain only
+index contains 1,360 tensors in nine model shards plus `mtp.safetensors`. The index
+total of `170733074592` payload bytes includes MTP: `166269249680` bytes in the
+nine model shards and `4463824912` in MTP. The checked-in fixtures contain only
 configuration, index, and SafeTensors headers, not tensor payloads.
 
 The checkpoint quantization record identifies NVFP4, a group size of 16, and a

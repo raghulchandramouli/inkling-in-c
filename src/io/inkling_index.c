@@ -1,348 +1,241 @@
-#include <ctype.h>
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "inkling/inkling.h"
+#include "inkling_json.h"
 
 #define INDEX_MAX_BYTES (16L * 1024L * 1024L)
-#define INDEX_INITIAL_CAPACITY 256
 
-static char *read_text_file(const char *path)
+static char *read_text_file(const char *path, size_t *size)
 {
     FILE *file = fopen(path, "rb");
-
     if (file == NULL) {
-        fprintf(stderr, "cannot open shard index: %s\n", path);
         return NULL;
     }
-
-    if (fseek(file, 0, SEEK_END) != 0) {
+    long length = -1;
+    if (fseek(file, 0, SEEK_END) == 0) {
+        length = ftell(file);
+    }
+    if (length < 0 || length > INDEX_MAX_BYTES || fseek(file, 0, SEEK_SET) != 0) {
         fclose(file);
         return NULL;
     }
-
-    long length = ftell(file);
-
-    if (length < 0 || length > INDEX_MAX_BYTES) {
-        fprintf(stderr, "invalid shard index file size\n");
-        fclose(file);
-        return NULL;
-    }
-
-    if (fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return NULL;
-    }
-
     char *text = malloc((size_t)length + 1);
-
-    if (text == NULL) {
-        fprintf(stderr, "cannot allocate shard index buffer\n");
+    if (text == NULL || fread(text, 1, (size_t)length, file) != (size_t)length) {
+        free(text);
         fclose(file);
         return NULL;
     }
-
-    size_t bytes_read = fread(text, 1, (size_t)length, file);
     fclose(file);
-
-    if (bytes_read != (size_t)length) {
-        fprintf(stderr, "could not read complete shard index\n");
-        free(text);
-        return NULL;
-    }
-
     text[length] = '\0';
+    *size = (size_t)length;
     return text;
 }
 
-static const char *skip_json_space(const char *position)
+static uint64_t name_hash(const char *name)
 {
-    while (isspace((unsigned char)*position)) {
-        position++;
+    uint64_t hash = UINT64_C(14695981039346656037);
+    for (; *name != '\0'; name++) {
+        hash ^= (unsigned char)*name;
+        hash *= UINT64_C(1099511628211);
     }
-
-    return position;
+    return hash;
 }
 
-static const char *find_key(const char *json, const char *key)
+static size_t find_slot(const InklingIndex *index, const char *name)
 {
-    char pattern[64];
-
-    int pattern_length = snprintf(
-        pattern,
-        sizeof(pattern),
-        "\"%s\"",
-        key
-    );
-
-    if (pattern_length < 0 ||
-        (size_t)pattern_length >= sizeof(pattern)) {
-        return NULL;
+    size_t slot = (size_t)(name_hash(name) & (uint64_t)(index->slot_count - 1));
+    for (size_t probe = 0; probe < index->slot_count; probe++) {
+        uint64_t entry = index->slots[slot];
+        if (entry == 0 || strcmp(index->entries[entry - 1].name, name) == 0) {
+            return slot;
+        }
+        slot = (slot + 1) & (index->slot_count - 1);
     }
-
-    const char *position = strstr(json, pattern);
-
-    if (position == NULL) {
-        return NULL;
-    }
-
-    position += pattern_length;
-    position = skip_json_space(position);
-
-    if (*position != ':') {
-        return NULL;
-    }
-
-    return skip_json_space(position + 1);
+    return index->slot_count;
 }
 
-static int parse_u64_value(
-    const char *json,
-    const char *key,
-    uint64_t *output
-)
-{
-    const char *start = find_key(json, key);
-
-    if (start == NULL || *start == '-') {
-        return 0;
-    }
-
-    errno = 0;
-
-    char *end = NULL;
-    unsigned long long value = strtoull(start, &end, 10);
-
-    if (errno == ERANGE || end == start) {
-        return 0;
-    }
-
-    while (isspace((unsigned char)*end)) {
-        end++;
-    }
-
-    if (*end != ',' && *end != '}') {
-        return 0;
-    }
-
-    *output = (uint64_t)value;
-    return 1;
-}
-
-static int read_quoted(
-    const char **position,
-    char *output,
-    size_t output_size
-)
-{
-    const char *start = skip_json_space(*position);
-
-    if (*start != '"') {
-        return 0;
-    }
-
-    const char *close = strchr(start + 1, '"');
-
-    if (close == NULL) {
-        return 0;
-    }
-
-    size_t length = (size_t)(close - start - 1);
-
-    if (length == 0 || length >= output_size) {
-        return 0;
-    }
-
-    if (memchr(start + 1, '"', length) != NULL ||
-        memchr(start + 1, '\\', length) != NULL) {
-        return 0;
-    }
-
-    memcpy(output, start + 1, length);
-    output[length] = '\0';
-    *position = close + 1;
-    return 1;
-}
-
-static int reserve(
-    InklingIndex *index,
-    uint64_t needed
-)
-{
-    if (needed <= index->capacity) {
-        return 1;
-    }
-
-    uint64_t next_capacity = index->capacity == 0
-        ? INDEX_INITIAL_CAPACITY
-        : index->capacity;
-
-    while (next_capacity < needed) {
-        if (next_capacity > UINT64_MAX / 2) {
-            return 0;
-        }
-
-        next_capacity *= 2;
-    }
-
-    if (next_capacity > SIZE_MAX / sizeof(InklingIndexEntry)) {
-        return 0;
-    }
-
-    InklingIndexEntry *entries = realloc(
-        index->entries,
-        (size_t)next_capacity * sizeof(InklingIndexEntry)
-    );
-
-    if (entries == NULL) {
-        fputs("cannot grow shard index\n", stderr);
-        return 0;
-    }
-
-    index->entries = entries;
-    index->capacity = next_capacity;
-    return 1;
-}
-
-static int parse_weight_map(
-    const char *json,
-    InklingIndex *index
-)
-{
-    const char *position = find_key(json, "weight_map");
-
-    if (position == NULL || *position != '{') {
-        fputs("shard index has no weight_map\n", stderr);
-        return 0;
-    }
-
-    position++;
-
-    for (;;) {
-        position = skip_json_space(position);
-
-        if (*position == '}') {
-            return 1;
-        }
-
-        if (*position != '"') {
-            fputs("malformed weight_map entry\n", stderr);
-            return 0;
-        }
-
-        char name[INKLING_INDEX_MAX_NAME_LENGTH];
-        char shard[INKLING_INDEX_MAX_SHARD_LENGTH];
-
-        if (!read_quoted(&position, name, sizeof(name)) ||
-            *skip_json_space(position) != ':') {
-            fputs("malformed weight_map tensor name\n", stderr);
-            return 0;
-        }
-
-        position = skip_json_space(position) + 1;
-
-        if (!read_quoted(&position, shard, sizeof(shard))) {
-            fputs("malformed weight_map shard name\n", stderr);
-            return 0;
-        }
-
-        position = skip_json_space(position);
-
-        if (!reserve(index, index->count + 1)) {
-            return 0;
-        }
-
-        strcpy(index->entries[index->count].name, name);
-        strcpy(index->entries[index->count].shard, shard);
-        index->count++;
-
-        if (*position == ',') {
-            position++;
-            continue;
-        }
-
-        if (*position == '}') {
-            return 1;
-        }
-
-        fputs("malformed weight_map separator\n", stderr);
-        return 0;
-    }
-}
-
-int inkling_index_load(
-    const char *path,
-    InklingIndex *index
-)
+int inkling_index_load(const char *path, InklingIndex *index)
 {
     if (path == NULL || index == NULL) {
         return 0;
     }
-
-    char *json = read_text_file(path);
-
+    size_t length = 0;
+    char *json = read_text_file(path, &length);
     if (json == NULL) {
         return 0;
     }
-
+    InklingJsonDocument document = {0};
+    int success = inkling_json_parse(json, length, &document, NULL);
+    free(json);
     InklingIndex parsed = {0};
-
-    if (!parse_weight_map(json, &parsed) ||
-        !parse_u64_value(
-            json,
-            "total_size",
-            &parsed.total_size)) {
-        fputs("invalid shard index\n", stderr);
-        free(json);
+    const InklingJsonValue *map = inkling_json_object_get(document.root, "weight_map");
+    const InklingJsonValue *metadata = inkling_json_object_get(document.root, "metadata");
+    size_t count = inkling_json_object_size(map);
+    if (!success || inkling_json_type(map) != INKLING_JSON_OBJECT || count == 0 ||
+        count > SIZE_MAX / sizeof(*parsed.entries) || count > SIZE_MAX / 2 ||
+        !inkling_json_number_u64(inkling_json_object_get(metadata, "total_size"),
+                                 &parsed.total_size)) {
+        success = 0;
+        goto done;
+    }
+    parsed.slot_count = 2;
+    while (parsed.slot_count < count * 2) {
+        if (parsed.slot_count > SIZE_MAX / 2) {
+            success = 0;
+            goto done;
+        }
+        parsed.slot_count *= 2;
+    }
+    if (parsed.slot_count > SIZE_MAX / sizeof(*parsed.slots)) {
+        success = 0;
+        goto done;
+    }
+    parsed.entries = calloc(count, sizeof(*parsed.entries));
+    parsed.slots = calloc(parsed.slot_count, sizeof(*parsed.slots));
+    if (parsed.entries == NULL || parsed.slots == NULL) {
+        success = 0;
+        goto done;
+    }
+    parsed.capacity = (uint64_t)count;
+    for (size_t position = 0; position < count; position++) {
+        size_t name_length = 0, shard_length = 0;
+        const char *name = inkling_json_object_key_at(map, position, &name_length);
+        const char *shard = inkling_json_string(
+            inkling_json_object_value_at(map, position), &shard_length);
+        InklingTensor *tensor = &parsed.entries[position];
+        if (name_length == 0 || name_length >= sizeof(tensor->name) ||
+            memchr(name, '\0', name_length) != NULL || shard == NULL ||
+            shard_length == 0 || shard_length >= sizeof(tensor->shard) ||
+            memchr(shard, '\0', shard_length) != NULL ||
+            strchr(shard, '/') != NULL || strchr(shard, '\\') != NULL ||
+            strcmp(shard, ".") == 0 || strcmp(shard, "..") == 0) {
+            success = 0;
+            goto done;
+        }
+        memcpy(tensor->name, name, name_length + 1);
+        memcpy(tensor->shard, shard, shard_length + 1);
+        size_t previous = 0;
+        for (; previous < position; previous++) {
+            if (strcmp(parsed.entries[previous].shard, shard) == 0) {
+                tensor->shard_id = parsed.entries[previous].shard_id;
+                break;
+            }
+        }
+        if (previous == position) {
+            if (parsed.num_shards == UINT32_MAX) {
+                success = 0;
+                goto done;
+            }
+            tensor->shard_id = parsed.num_shards++;
+        }
+        size_t slot = find_slot(&parsed, name);
+        if (slot == parsed.slot_count || parsed.slots[slot] != 0) {
+            success = 0;
+            goto done;
+        }
+        parsed.slots[slot] = (uint64_t)position + 1;
+        parsed.count++;
+    }
+done:
+    inkling_json_document_free(&document);
+    if (!success) {
         inkling_index_free(&parsed);
         return 0;
     }
-
-    free(json);
     *index = parsed;
     return 1;
 }
 
-int inkling_index_find_shard(
-    const InklingIndex *index,
-    const char *tensor_name,
-    char *shard_out,
-    size_t shard_out_size
-)
+const InklingTensor *inkling_index_find_tensor(const InklingIndex *index, const char *name)
 {
-    if (index == NULL ||
-        tensor_name == NULL ||
-        shard_out == NULL) {
+    if (index == NULL || name == NULL || index->slots == NULL || index->slot_count == 0) {
+        return NULL;
+    }
+    size_t slot = find_slot(index, name);
+    if (slot == index->slot_count || index->slots[slot] == 0) {
+        return NULL;
+    }
+    return &index->entries[index->slots[slot] - 1];
+}
+
+int inkling_index_find_shard(const InklingIndex *index, const char *name,
+                             char *output, size_t output_size)
+{
+    const InklingTensor *tensor = inkling_index_find_tensor(index, name);
+    if (tensor == NULL || output == NULL || strlen(tensor->shard) >= output_size) {
         return 0;
     }
+    memcpy(output, tensor->shard, strlen(tensor->shard) + 1);
+    return 1;
+}
 
+static int bind_tensors(InklingIndex *index, const char *shard,
+                        const InklingTensor *tensors, size_t count)
+{
+    size_t expected = 0;
     for (uint64_t entry = 0; entry < index->count; entry++) {
-        if (strcmp(index->entries[entry].name, tensor_name) == 0) {
-            size_t length = strlen(index->entries[entry].shard);
-
-            if (length >= shard_out_size) {
-                return 0;
-            }
-
-            memcpy(shard_out, index->entries[entry].shard, length + 1);
-            return 1;
+        expected += strcmp(index->entries[entry].shard, shard) == 0 ? 1U : 0U;
+    }
+    if (expected == 0 || count != expected) {
+        return 0;
+    }
+    /* Check the entire shard before publishing any metadata. */
+    for (size_t position = 0; position < count; position++) {
+        const InklingTensor *entry = inkling_index_find_tensor(index, tensors[position].name);
+        if (entry == NULL || strcmp(entry->shard, shard) != 0) {
+            return 0;
         }
     }
+    for (size_t position = 0; position < count; position++) {
+        size_t slot = find_slot(index, tensors[position].name);
+        InklingTensor *entry = &index->entries[index->slots[slot] - 1];
+        entry->dtype = tensors[position].dtype;
+        entry->rank = tensors[position].rank;
+        memcpy(entry->shape, tensors[position].shape, sizeof(entry->shape));
+        entry->data_offset = tensors[position].data_offset;
+        entry->byte_length = tensors[position].byte_length;
+    }
+    return 1;
+}
 
-    return 0;
+int inkling_index_bind_header(InklingIndex *index, const char *shard, const char *json,
+                              uint64_t header_size, uint64_t shard_size)
+{
+    if (index == NULL || shard == NULL) {
+        return 0;
+    }
+    InklingTensor *tensors = NULL;
+    size_t count = 0;
+    int success = inkling_safetensors_parse_header(json, header_size, shard_size, &tensors, &count);
+    if (success) {
+        success = bind_tensors(index, shard, tensors, count);
+    }
+    free(tensors);
+    return success;
+}
+
+int inkling_index_load_shard(InklingIndex *index, const char *shard, const char *path)
+{
+    if (index == NULL || shard == NULL) {
+        return 0;
+    }
+    InklingTensor *tensors = NULL;
+    size_t count = 0;
+    int success = inkling_safetensors_load_shard(path, &tensors, &count);
+    if (success) {
+        success = bind_tensors(index, shard, tensors, count);
+    }
+    free(tensors);
+    return success;
 }
 
 void inkling_index_free(InklingIndex *index)
 {
-    if (index == NULL) {
-        return;
+    if (index != NULL) {
+        free(index->entries);
+        free(index->slots);
+        *index = (InklingIndex){0};
     }
-
-    free(index->entries);
-    index->entries = NULL;
-    index->count = 0;
-    index->capacity = 0;
-    index->total_size = 0;
 }
