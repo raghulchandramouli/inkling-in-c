@@ -40,6 +40,12 @@ int inkling_json_parse(
     InklingJsonError *error
 );
 
+/* Load a bounded JSON file; report I/O or parse errors with its path.
+ * Ownership and failure behavior are the same as inkling_json_parse(). */
+int inkling_json_load_file(
+    const char *path, size_t max_bytes, InklingJsonDocument *document
+);
+
 void inkling_json_document_free(InklingJsonDocument *document);
 
 InklingJsonType inkling_json_type(const InklingJsonValue *value);

@@ -2,7 +2,6 @@
 
 #include <errno.h>
 #include <math.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,7 +53,7 @@ typedef struct {
 
 static void free_value(InklingJsonValue *value);
 
-static int parser_fail(JsonParser *parser, const char *format, ...)
+static int parser_fail(JsonParser *parser, const char *message)
 {
     if (parser->failed) {
         return 0;
@@ -81,15 +80,7 @@ static int parser_fail(JsonParser *parser, const char *format, ...)
         }
     }
 
-    va_list arguments;
-    va_start(arguments, format);
-    vsnprintf(
-        parser->error->message,
-        sizeof(parser->error->message),
-        format,
-        arguments
-    );
-    va_end(arguments);
+    snprintf(parser->error->message, sizeof(parser->error->message), "%s", message);
     return 0;
 }
 
@@ -943,6 +934,34 @@ int inkling_json_parse(
 
     document->root = root;
     return 1;
+}
+
+int inkling_json_load_file(const char *path, size_t max_bytes, InklingJsonDocument *document)
+{
+    if (document == NULL) return 0;
+    document->root = NULL;
+    if (path == NULL) return 0;
+    FILE *file = fopen(path, "rb");
+    if (file == NULL) {
+        fprintf(stderr, "cannot open JSON file %s: %s\n", path, strerror(errno));
+        return 0;
+    }
+    int success = 0;
+    char *text = NULL;
+    if (fseek(file, 0, SEEK_END) != 0) goto done;
+    long length = ftell(file);
+    if (length < 0 || (uintmax_t)length > max_bytes ||
+        (uintmax_t)length >= SIZE_MAX || fseek(file, 0, SEEK_SET) != 0) goto done;
+    text = malloc((size_t)length + 1);
+    if (text == NULL || fread(text, 1, (size_t)length, file) != (size_t)length) goto done;
+    InklingJsonError error;
+    success = inkling_json_parse(text, (size_t)length, document, &error);
+    if (!success) fprintf(stderr, "%s:%zu:%zu: %s\n", path, error.line, error.column, error.message);
+done:
+    if (!success) fprintf(stderr, "cannot load JSON file %s (limit %zu bytes)\n", path, max_bytes);
+    free(text);
+    fclose(file);
+    return success;
 }
 
 void inkling_json_document_free(InklingJsonDocument *document)

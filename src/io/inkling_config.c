@@ -8,55 +8,6 @@
 
 #define MAX_CONFIG_BYTES (1024L * 1024L)
 
-static char *read_text_file(const char *path, size_t *output_length)
-{
-    FILE *file = fopen(path, "rb");
-
-    if (file == NULL) {
-        fprintf(stderr, "cannot open config: %s\n", path);
-        return NULL;
-    }
-
-    if (fseek(file, 0, SEEK_END) != 0) {
-        fclose(file);
-        return NULL;
-    }
-
-    long length = ftell(file);
-
-    if (length < 0 || length > MAX_CONFIG_BYTES) {
-        fprintf(stderr, "invalid config file size\n");
-        fclose(file);
-        return NULL;
-    }
-
-    if (fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return NULL;
-    }
-
-    char *text = malloc((size_t)length + 1);
-
-    if (text == NULL) {
-        fprintf(stderr, "cannot allocate config buffer\n");
-        fclose(file);
-        return NULL;
-    }
-
-    size_t bytes_read = fread(text, 1, (size_t)length, file);
-    fclose(file);
-
-    if (bytes_read != (size_t)length) {
-        fprintf(stderr, "could not read complete config\n");
-        free(text);
-        return NULL;
-    }
-
-    text[(size_t)length] = '\0';
-    *output_length = (size_t)length;
-    return text;
-}
-
 static int read_u32(
     const InklingJsonValue *object,
     const char *key,
@@ -160,33 +111,10 @@ int inkling_config_load(
         return 0;
     }
 
-    size_t json_length = 0;
-    char *json = read_text_file(path, &json_length);
-
-    if (json == NULL) {
-        return 0;
-    }
-
     InklingJsonDocument document = {0};
-    InklingJsonError error;
-
-    if (!inkling_json_parse(
-            json,
-            json_length,
-            &document,
-            &error)) {
-        fprintf(
-            stderr,
-            "invalid config JSON at %zu:%zu: %s\n",
-            error.line,
-            error.column,
-            error.message
-        );
-        free(json);
+    if (!inkling_json_load_file(path, MAX_CONFIG_BYTES, &document)) {
         return 0;
     }
-
-    free(json);
 
     const InklingJsonValue *root = document.root;
     const InklingJsonValue *text_config =
@@ -266,6 +194,11 @@ int inkling_config_is_valid(const InklingConfig *config)
         config->num_attention_heads == 0 ||
         config->num_key_value_heads == 0 ||
         config->head_dim == 0 ||
+        config->relative_dimension == 0 ||
+        config->relative_extent == 0 ||
+        config->sconv_kernel_size == 0 ||
+        config->dense_intermediate_size == 0 ||
+        config->expert_intermediate_size == 0 ||
         config->num_routed_experts == 0 ||
         config->num_experts_per_token == 0) {
         return 0;
@@ -291,8 +224,8 @@ int inkling_config_is_valid(const InklingConfig *config)
         return 0;
     }
 
-    if (config->sliding_window_size >
-        config->model_max_length) {
+    if (config->sliding_window_size > config->model_max_length ||
+        (config->num_local_layers != 0 && config->sliding_window_size == 0)) {
         return 0;
     }
 

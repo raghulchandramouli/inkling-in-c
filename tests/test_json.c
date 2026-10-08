@@ -334,71 +334,11 @@ static void test_depth_limit(void)
     free(text);
 }
 
-static char *read_file(const char *path, size_t *length)
-{
-    FILE *file = fopen(path, "rb");
-
-    if (file == NULL ||
-        fseek(file, 0, SEEK_END) != 0) {
-        if (file != NULL) {
-            fclose(file);
-        }
-        return NULL;
-    }
-
-    long file_length = ftell(file);
-
-    if (file_length < 0 ||
-        (uintmax_t)file_length >= (uintmax_t)SIZE_MAX ||
-        fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return NULL;
-    }
-
-    size_t size = (size_t)file_length;
-    char *text = malloc(size + 1);
-
-    if (text == NULL) {
-        fclose(file);
-        return NULL;
-    }
-
-    size_t bytes_read = fread(text, 1, size, file);
-    fclose(file);
-
-    if (bytes_read != size) {
-        free(text);
-        return NULL;
-    }
-
-    text[size] = '\0';
-    *length = size;
-    return text;
-}
-
 static void test_checkpoint_config(const char *path)
 {
-    size_t length = 0;
-    char *text = read_file(path, &length);
-
-    if (text == NULL) {
-        expect(0, "read checkpoint config");
-        return;
-    }
-
     InklingJsonDocument document = {0};
-    InklingJsonError error;
-
-    if (!inkling_json_parse(text, length, &document, &error)) {
-        fprintf(
-            stderr,
-            "FAIL: checkpoint config JSON at %zu:%zu: %s\n",
-            error.line,
-            error.column,
-            error.message
-        );
-        failures++;
-        free(text);
+    if (!inkling_json_load_file(path, 16 * 1024 * 1024, &document)) {
+        expect(0, "load checkpoint config JSON");
         return;
     }
 
@@ -429,32 +369,13 @@ static void test_checkpoint_config(const char *path)
     );
 
     inkling_json_document_free(&document);
-    free(text);
 }
 
 static void test_checkpoint_index(const char *path)
 {
-    size_t length = 0;
-    char *text = read_file(path, &length);
-
-    if (text == NULL) {
-        expect(0, "read checkpoint index");
-        return;
-    }
-
     InklingJsonDocument document = {0};
-    InklingJsonError error;
-
-    if (!inkling_json_parse(text, length, &document, &error)) {
-        fprintf(
-            stderr,
-            "FAIL: checkpoint index JSON at %zu:%zu: %s\n",
-            error.line,
-            error.column,
-            error.message
-        );
-        failures++;
-        free(text);
+    if (!inkling_json_load_file(path, 16 * 1024 * 1024, &document)) {
+        expect(0, "load checkpoint index JSON");
         return;
     }
 
@@ -477,7 +398,6 @@ static void test_checkpoint_index(const char *path)
     );
 
     inkling_json_document_free(&document);
-    free(text);
 }
 
 int main(int argc, char **argv)
@@ -494,6 +414,13 @@ int main(int argc, char **argv)
     test_depth_limit();
     test_checkpoint_config(argv[1]);
     test_checkpoint_index(argv[2]);
+    InklingJsonDocument document = {0};
+    expect(!inkling_json_load_file(argv[1], 1, &document) && document.root == NULL,
+           "file-size limit enforced before parsing");
+    expect(!inkling_json_load_file("/nonexistent/inkling.json", SIZE_MAX, &document) &&
+           document.root == NULL, "missing JSON file leaves empty document");
+    expect(!inkling_json_load_file(NULL, SIZE_MAX, &document), "NULL file path rejected");
+    expect(!inkling_json_load_file(argv[1], SIZE_MAX, NULL), "NULL file document rejected");
 
     if (failures != 0) {
         fprintf(stderr, "%d JSON test(s) failed\n", failures);

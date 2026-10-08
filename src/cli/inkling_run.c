@@ -25,7 +25,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "usage: %s <config.json>\n"
                 "       %s MODEL_DIR --verify-model [--with-mtp] [--metadata-only]\n",
                 argv[0], argv[0]);
-        return EXIT_FAILURE;
+        return 2;
     }
 
     InklingConfig config;

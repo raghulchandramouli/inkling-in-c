@@ -5,7 +5,9 @@ Implementation references and immutable upstream revisions are recorded in
 
 Run the network-free tests with `make test`. They validate all 1,360 indexed
 tensors across the pinned checkpoint headers, including the five stored dtypes,
-hash collisions, shape/byte arithmetic, overlapping ranges, and truncated shards.
+hash collisions, shape/byte arithmetic, payload gaps/overlaps, trailing bytes,
+and truncated shards. Tensor ranges must cover the full payload, as required by
+the [SafeTensors format](https://github.com/safetensors/safetensors#format).
 
 `InklingIndex` is the tensor catalogue. Load the index with `inkling_index_load`,
 bind each real shard with `inkling_index_load_shard`, then resolve tensors with

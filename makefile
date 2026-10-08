@@ -4,93 +4,40 @@ CPPFLAGS := -Iinclude
 CFLAGS := -std=c99 -O2 -Wall -Wextra -Wpedantic -Werror
 
 BIN := bin/inkling
-TEST_SAFETENSORS := bin/test_safetensors
-TEST_CONFIG := bin/test_config
-TEST_INDEX := bin/test_index
-TEST_JSON := bin/test_json
-TEST_CATALOGUE := bin/test_catalogue
+TESTS := bin/test_safetensors bin/test_config bin/test_json bin/test_catalogue
+HEADERS := include/inkling/inkling.h src/io/inkling_json.h
+IO_SOURCES := $(wildcard src/io/*.c)
 
 CHECKPOINT_FIXTURES := tests/fixtures/checkpoint
 CONFIG := $(CHECKPOINT_FIXTURES)/config.json
 INDEX := $(CHECKPOINT_FIXTURES)/model.safetensors.index.json
 SAFETENSORS_FIXTURE := tests/fixtures/tiny.safetensors
-REAL_SAFETENSORS_HEADER := \
-	$(CHECKPOINT_FIXTURES)/headers/model-00005-of-00009.safetensors
-
-INKLING_SOURCES := \
-	src/cli/inkling_run.c \
-	src/io/inkling_config.c \
-	src/io/inkling_json.c \
-	src/io/inkling_index.c \
-	src/io/inkling_safetensors.c \
-	src/io/inkling_verify.c
-
-SAFETENSORS_TEST_SOURCES := \
-	tests/test_safetensors.c \
-	src/io/inkling_safetensors.c \
-	src/io/inkling_json.c
-
-CONFIG_TEST_SOURCES := \
-	tests/test_config.c \
-	src/io/inkling_config.c \
-	src/io/inkling_json.c
-
-INDEX_TEST_SOURCES := \
-	tests/test_index.c \
-	src/io/inkling_index.c \
-	src/io/inkling_safetensors.c \
-	src/io/inkling_json.c
-
-CATALOGUE_TEST_SOURCES := \
-	tests/test_catalogue.c \
-	src/io/inkling_index.c \
-	src/io/inkling_safetensors.c \
-	src/io/inkling_json.c
-
-JSON_TEST_SOURCES := \
-	tests/test_json.c \
-	src/io/inkling_json.c
+REAL_SAFETENSORS_HEADER := $(CHECKPOINT_FIXTURES)/headers/model-00005-of-00009.safetensors
 
 .PHONY: all test clean
-
 all: $(BIN)
 
-$(BIN): $(INKLING_SOURCES) include/inkling/inkling.h src/io/inkling_json.h
-	mkdir -p bin
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(INKLING_SOURCES) -o $(BIN)
+$(BIN): src/cli/inkling_run.c $(IO_SOURCES)
+bin/test_safetensors: tests/test_safetensors.c src/io/inkling_safetensors.c src/io/inkling_json.c
+bin/test_config: tests/test_config.c src/io/inkling_config.c src/io/inkling_json.c
+bin/test_json: tests/test_json.c src/io/inkling_json.c
+bin/test_catalogue: tests/test_catalogue.c src/io/inkling_index.c src/io/inkling_safetensors.c src/io/inkling_json.c
 
-$(TEST_SAFETENSORS): $(SAFETENSORS_TEST_SOURCES) include/inkling/inkling.h src/io/inkling_json.h
-	mkdir -p bin
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(SAFETENSORS_TEST_SOURCES) -o $(TEST_SAFETENSORS)
+$(BIN) $(TESTS): $(HEADERS) | bin
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(filter %.c,$^) $(LDFLAGS) $(LDLIBS) -o $@
 
-$(TEST_CONFIG): $(CONFIG_TEST_SOURCES) include/inkling/inkling.h
-	mkdir -p bin
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(CONFIG_TEST_SOURCES) -o $(TEST_CONFIG)
-
-$(TEST_INDEX): $(INDEX_TEST_SOURCES) include/inkling/inkling.h src/io/inkling_json.h
-	mkdir -p bin
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(INDEX_TEST_SOURCES) -o $(TEST_INDEX)
-
-$(TEST_JSON): $(JSON_TEST_SOURCES) src/io/inkling_json.h
-	mkdir -p bin
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(JSON_TEST_SOURCES) -o $(TEST_JSON)
-
-$(TEST_CATALOGUE): $(CATALOGUE_TEST_SOURCES) include/inkling/inkling.h src/io/inkling_json.h
-	mkdir -p bin
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(CATALOGUE_TEST_SOURCES) -o $(TEST_CATALOGUE)
+bin:
+	mkdir -p $@
 
 $(SAFETENSORS_FIXTURE): tools/make_tiny_fixture.py
 	python3 tools/make_tiny_fixture.py
 
-test: $(BIN) $(TEST_SAFETENSORS) $(TEST_CONFIG) $(TEST_INDEX) $(TEST_JSON) $(TEST_CATALOGUE) \
-	$(SAFETENSORS_FIXTURE) $(REAL_SAFETENSORS_HEADER)
-	./$(BIN) $(CONFIG)
-	./$(TEST_SAFETENSORS) $(SAFETENSORS_FIXTURE) $(REAL_SAFETENSORS_HEADER)
-	./$(TEST_CONFIG) $(CONFIG)
-	./$(TEST_INDEX) $(INDEX) $(REAL_SAFETENSORS_HEADER)
-	./$(TEST_JSON) $(CONFIG) $(INDEX)
-	./$(TEST_CATALOGUE) $(CHECKPOINT_FIXTURES)
+test: $(BIN) $(TESTS) $(SAFETENSORS_FIXTURE) $(REAL_SAFETENSORS_HEADER)
+	./bin/test_safetensors $(SAFETENSORS_FIXTURE) $(REAL_SAFETENSORS_HEADER)
+	./bin/test_config $(CONFIG)
+	./bin/test_json $(CONFIG) $(INDEX)
+	./bin/test_catalogue $(CHECKPOINT_FIXTURES)
 	python3 tests/test_verify.py $(BIN) $(CHECKPOINT_FIXTURES)
 
 clean:
-	rm -f $(BIN) $(TEST_SAFETENSORS) $(TEST_CONFIG) $(TEST_INDEX) $(TEST_JSON) $(TEST_CATALOGUE)
+	rm -f $(BIN) $(TESTS)
