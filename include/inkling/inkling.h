@@ -62,11 +62,6 @@ int inkling_config_load(const char *path, InklingConfig *config);
 int inkling_config_is_valid(const InklingConfig *config);
 void inkling_config_free(InklingConfig *config);
 
-int inkling_safetensors_header_size(
-    const char *path,
-    uint64_t *header_size
-);
-
 /*
  * On success, the caller owns *header_json and must free it.
  */
@@ -101,12 +96,9 @@ typedef struct {
     uint32_t shard_id;
 } InklingTensor;
 
-typedef InklingTensor InklingIndexEntry;
-
 typedef struct {
-    InklingIndexEntry *entries;
+    InklingTensor *entries;
     uint64_t count;
-    uint64_t capacity;
     uint64_t total_size;
     uint64_t *slots; /* Entry index + 1; zero is an empty slot. */
     size_t slot_count;
@@ -131,8 +123,9 @@ int inkling_index_load_shard(
     InklingIndex *index, const char *shard, const char *path
 );
 
-/* Parse exactly header_size bytes and validate all tensor ranges against
- * shard_size (including the 8-byte prefix and header). Caller owns *tensors.
+/* Parse exactly header_size bytes; tensor ranges must cover the entire payload
+ * without gaps or overlaps. shard_size includes the 8-byte prefix and header.
+ * Caller owns *tensors.
  * Outputs are empty on failure. U8 is one stored byte (two packed FP4 values
  * when used by this checkpoint); original_shape carries the logical shape. */
 int inkling_safetensors_parse_header(

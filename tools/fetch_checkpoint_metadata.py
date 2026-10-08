@@ -23,7 +23,6 @@ REVISION = "b6a99534467840620d411e4cd4ad5819b2610d9c"
 BASE_URL = f"https://huggingface.co/{MODEL}/resolve/{REVISION}/"
 
 OUTPUT_DIR = Path("tests/fixtures/checkpoint")
-HEADER_DIR = OUTPUT_DIR / "headers"
 
 SMALL_FILES = (
     "config.json",

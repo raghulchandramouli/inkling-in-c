@@ -129,6 +129,8 @@ with tempfile.TemporaryDirectory(prefix="inkling-verify-") as directory:
     assert "MTP: skipped" in skipped and "census mtp: tensors=0 bytes=0" in skipped
     assert "total: tensors=1200 bytes=166269249680 indexed=1360" in skipped
     invoke(root, "--metadata-only", "--with-mtp", success=False, diagnostic="required shard")
+    change_json(root, INDEX, lambda value: value["weight_map"].pop("model.mtp.layers.0.embed_norm.weight"))
+    invoke(root, "--metadata-only", success=False, diagnostic="missing required tensor")
 
 # Actual-file mode: sparse truncation allocates no tensor payloads. This also
 # demonstrates that .original_shape payload values are intentionally NOT read.
@@ -150,8 +152,12 @@ with tempfile.TemporaryDirectory(prefix="inkling-sparse-") as directory:
     assert "MTP: skipped" in invoke(root)
     invoke(root, "--with-mtp", success=False, diagnostic="required shard")
     path = root / "model-00001-of-00009.safetensors"
+    size = path.stat().st_size
     with path.open("r+b") as file:
-        file.truncate(path.stat().st_size - 1)
+        file.truncate(size + 1)
+    invoke(root, success=False, diagnostic="invalid shard")
+    with path.open("r+b") as file:
+        file.truncate(size - 1)
     invoke(root, success=False, diagnostic="invalid shard")
 
 invoke(FIXTURES / "does-not-exist", success=False, diagnostic="existing directory")
@@ -159,13 +165,15 @@ invoke(FIXTURES / "config.json", success=False, diagnostic="existing directory")
 invoke(FIXTURES, success=False, diagnostic="required shard")
 for filename in ("config.json", INDEX, "hf_quant_config.json", "headers/model-00003-of-00009.safetensors"):
     metadata_case(lambda root, filename=filename: (root / filename).unlink(), filename)
+metadata_case(lambda root: (root / "config.json").write_bytes(
+    (root / "config.json").read_bytes() + b"\x00"), "trailing content")
 
 metadata_case(lambda root: change_json(root, INDEX, lambda value: value["metadata"].update(total_size=1)), "index identity")
 metadata_case(lambda root: change_json(root, INDEX, lambda value: value["weight_map"].update(
     {"model.llm.embed.weight": "model-00001-of-00009.safetensors"})), "invalid shard")
 for name in ("model.llm.norm.weight", "model.llm.layers.3.mlp.experts.w13_weight.scale"):
     metadata_case(lambda root, name=name: change_json(root, INDEX, lambda value: value["weight_map"].pop(name)),
-                  "missing required tensor " + name)
+                  "invalid shard")
 
 for name in ("model.llm.norm.weight", "model.llm.layers.3.mlp.experts.w13_weight.scale"):
     metadata_case(lambda root, name=name: change_tensor(root, name, lambda tensor: tensor.update(shape=[64,64]
@@ -177,7 +185,9 @@ metadata_case(lambda root: change_tensor(root, "model.mtp.layers.0.embed_norm.we
 
 for section, key, value in (("text_config", "hidden_size", 2048), ("text_config", "q_bias", True),
                             ("vision_config", "patch_size", 20), ("audio_config", "n_mel_bins", 40),
-                            ("mtp_config", "num_nextn_predict_layers", 4)):
+                            ("mtp_config", "num_nextn_predict_layers", 4),
+                            ("text_config", "hidden_size", 4096.0),
+                            ("vision_config", "patch_size", 40.0)):
     metadata_case(lambda root, section=section, key=key, value=value: change_json(root, "config.json",
         lambda config: config[section].update({key: value})), "unsupported config")
 for section in ("text_config", "mtp_config"):
@@ -192,6 +202,9 @@ metadata_case(lambda root: change_json(root, "hf_quant_config.json", lambda conf
     "hf_quant_config.json")
 metadata_case(lambda root: change_json(root, "hf_quant_config.json", lambda config:
     config["quantization"]["modelopt_quant_config"]["quant_cfg"]["*input_quantizer"].update(enable=False)),
+    "hf_quant_config.json")
+metadata_case(lambda root: change_json(root, "hf_quant_config.json", lambda config:
+    config["quantization"]["modelopt_quant_config"]["quant_cfg"]["*weight_quantizer"]["block_sizes"].update({"-2": 16})),
     "hf_quant_config.json")
 
 # Rename in both index and header: reconciliation alone is not enough to pass.
@@ -239,5 +252,8 @@ assert normal.returncode == 0 and normal.stdout.startswith("Inkling-Small config
 assert "local layers:        35 [0,1,2,3,4,6" in normal.stdout
 for options in (("--bad-option",), ("--with-mtp", "--with-mtp"), ("--metadata-only", "--metadata-only")):
     result = subprocess.run([str(BINARY), str(FIXTURES), "--verify-model", *options], capture_output=True, timeout=30)
+    assert result.returncode == 2
+for arguments in ((), (str(FIXTURES), "--bad-option")):
+    result = subprocess.run([str(BINARY), *arguments], capture_output=True, timeout=30)
     assert result.returncode == 2
 print("checkpoint verifier: census, sparse actual files, MTP gate, negative cases and legacy CLI OK")

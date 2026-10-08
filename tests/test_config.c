@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
@@ -213,6 +214,22 @@ static void test_validity(void)
     expect(!inkling_config_is_valid(&copy), "out-of-range layer in public config rejected");
     copy.num_local_layers = (size_t)config.num_hidden_layers + 1;
     expect(!inkling_config_is_valid(&copy), "too many local layers rejected");
+
+    copy = config;
+    uint32_t *dimensions[] = {&copy.relative_dimension, &copy.relative_extent,
+        &copy.sconv_kernel_size, &copy.dense_intermediate_size, &copy.expert_intermediate_size};
+    for (size_t i = 0; i < sizeof(dimensions) / sizeof(dimensions[0]); i++) {
+        uint32_t original = *dimensions[i];
+        *dimensions[i] = 0;
+        expect(!inkling_config_is_valid(&copy), "zero model dimension rejected");
+        *dimensions[i] = original;
+    }
+    copy.sliding_window_size = 0;
+    expect(inkling_config_is_valid(&copy), "all-global layout needs no sliding window");
+    uint32_t local = 0;
+    copy.local_layer_ids = &local;
+    copy.num_local_layers = 1;
+    expect(!inkling_config_is_valid(&copy), "local attention requires a nonzero window");
 }
 
 static int write_temp_file(char *path, size_t path_size, const char *content)

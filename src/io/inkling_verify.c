@@ -30,7 +30,6 @@ typedef struct {
     InklingIndex index;
     unsigned char *seen;
     int skip_mtp;
-    int names_only;
     uint64_t counts[7], bytes[7];
 } Census;
 
@@ -42,30 +41,6 @@ static int path_join(char *path, size_t size, const char *directory, const char 
         return 0;
     }
     return 1;
-}
-
-static int load_json(const char *path, InklingJsonDocument *document)
-{
-    FILE *file = fopen(path, "rb");
-    if (!file) {
-        fprintf(stderr, "verify: cannot open %s: %s\n", path, strerror(errno));
-        return 0;
-    }
-    int ok = 0;
-    char *text = NULL;
-    if (fseek(file, 0, SEEK_END) != 0) goto done;
-    long size = ftell(file);
-    if (size < 0 || size > 16 * 1024 * 1024 || fseek(file, 0, SEEK_SET) != 0) goto done;
-    text = malloc((size_t)size + 1);
-    if (!text || fread(text, 1, (size_t)size, file) != (size_t)size) goto done;
-    InklingJsonError error;
-    ok = inkling_json_parse(text, (size_t)size, document, &error);
-    if (!ok) fprintf(stderr, "verify: %s:%zu:%zu: %s\n", path, error.line, error.column, error.message);
-done:
-    if (!ok) fprintf(stderr, "verify: cannot load JSON metadata %s\n", path);
-    free(text);
-    fclose(file);
-    return ok;
 }
 
 static const InklingJsonValue *get(const InklingJsonValue *value, const char *key)
@@ -86,31 +61,39 @@ static int number_is(const InklingJsonValue *value, double expected)
     return inkling_json_number_double(value, &number) && number == expected;
 }
 
+static int integer_is(const InklingJsonValue *value, uint64_t expected)
+{
+    uint64_t number;
+    return inkling_json_number_u64(value, &number) && number == expected;
+}
+
 /* This executable supports one pinned architecture, not arbitrary Inkling
  * variants. Validate shape-affecting and execution-affecting config fields. */
 static int config_contract(const InklingJsonValue *root)
 {
-    static const struct { const char *section, *key; double value; } numbers[] = {
+    static const struct { const char *section, *key; uint64_t value; } integers[] = {
         {NULL,"eos_token_id",200006},
         {"text_config","model_max_length",1048576}, {"text_config","hidden_size",4096},
         {"text_config","num_hidden_layers",42}, {"text_config","vocab_size",201024},
         {"text_config","num_attention_heads",32}, {"text_config","num_key_value_heads",8},
         {"text_config","head_dim",128}, {"text_config","d_rel",16}, {"text_config","rel_extent",1024},
-        {"text_config","log_scaling_n_floor",128000}, {"text_config","log_scaling_alpha",0.1},
-        {"text_config","rms_norm_eps",1e-6}, {"text_config","dense_mlp_idx",2},
+        {"text_config","log_scaling_n_floor",128000}, {"text_config","dense_mlp_idx",2},
         {"text_config","sconv_kernel_size",4}, {"text_config","unpadded_vocab_size",200058},
-        {"text_config","logits_mup_width_multiplier",16}, {"text_config","swa_head_dim",128},
+        {"text_config","swa_head_dim",128},
         {"text_config","swa_num_attention_heads",32}, {"text_config","swa_num_key_value_heads",8},
         {"text_config","sliding_window_size",512}, {"text_config","n_routed_experts",256},
         {"text_config","num_experts_per_tok",6}, {"text_config","n_shared_experts",2},
         {"text_config","dense_intermediate_size",16384}, {"text_config","intermediate_size",2048},
-        {"text_config","route_scale",8},
         {"audio_config","decoder_dmodel",4096}, {"audio_config","n_mel_bins",80},
-        {"audio_config","mel_vocab_size",16}, {"audio_config","dmel_min_value",-7},
-        {"audio_config","dmel_max_value",2},
+        {"audio_config","mel_vocab_size",16},
         {"vision_config","decoder_dmodel",4096}, {"vision_config","patch_size",40},
         {"vision_config","temporal_patch_size",2}, {"vision_config","n_channels",3},
         {"vision_config","n_layers",4}, {"mtp_config","num_nextn_predict_layers",8}
+    };
+    static const struct { const char *section, *key; double value; } numbers[] = {
+        {"text_config","log_scaling_alpha",0.1}, {"text_config","rms_norm_eps",1e-6},
+        {"text_config","logits_mup_width_multiplier",16}, {"text_config","route_scale",8},
+        {"audio_config","dmel_min_value",-7}, {"audio_config","dmel_max_value",2}
     };
     static const struct { const char *section, *key; int value; } flags[] = {
         {"text_config","q_bias",0}, {"text_config","o_bias",0},
@@ -125,6 +108,14 @@ static int config_contract(const InklingJsonValue *root)
         {"text_config","gate_activation","sigmoid"}, {"audio_config","audio_mode","dmel"},
         {"vision_config","vision_encoder_type","hmlp"}
     };
+    for (size_t i = 0; i < sizeof(integers) / sizeof(integers[0]); i++) {
+        const InklingJsonValue *section = integers[i].section ? get(root, integers[i].section) : root;
+        if (!integer_is(get(section, integers[i].key), integers[i].value)) {
+            fprintf(stderr, "verify: unsupported config %s.%s (expected integer %" PRIu64 ")\n",
+                    integers[i].section ? integers[i].section : "root", integers[i].key, integers[i].value);
+            return 0;
+        }
+    }
     for (size_t i = 0; i < sizeof(numbers) / sizeof(numbers[0]); i++) {
         const InklingJsonValue *section = numbers[i].section ? get(root, numbers[i].section) : root;
         if (!number_is(get(section, numbers[i].key), numbers[i].value)) {
@@ -178,7 +169,7 @@ static int layer_contract(const InklingJsonValue *ids, int mtp)
         seen[id] = 1;
     }
     for (size_t i = 0; i < limit; i++) {
-        int is_local = mtp ? (i != 1 && i != 3) : (i == 0 || i % 6 != 5);
+        int is_local = mtp ? (i != 1 && i != 3) : (i % 6 != 5);
         /* Global text layers are 5,11,17,23,29,35,41. */
         if (seen[i] != is_local) return 0;
     }
@@ -201,7 +192,7 @@ static int quant_contract(const InklingJsonValue *quant)
     const InklingJsonValue *modules = get(quant, "exclude_modules");
     if (!string_is(get(quant, "quant_algo"), "NVFP4") ||
         !string_is(get(quant, "kv_cache_quant_algo"), "none") ||
-        !number_is(get(quant, "group_size"), 16) ||
+        !integer_is(get(quant, "group_size"), 16) ||
         inkling_json_type(modules) != INKLING_JSON_ARRAY || inkling_json_array_size(modules) != 312) goto invalid;
     for (size_t i = 0; i < inkling_json_array_size(modules); i++) {
         size_t size;
@@ -219,10 +210,11 @@ static int quant_contract(const InklingJsonValue *quant)
         const InklingJsonValue *bits = get(entry, "num_bits"), *block = get(entry, "block_sizes");
         const InklingJsonValue *scale = get(block, "scale_bits"), *axis = get(entry, "axis");
         int enabled;
-        if (inkling_json_array_size(bits) != 2 || !number_is(inkling_json_array_at(bits, 0), 2) ||
-            !number_is(inkling_json_array_at(bits, 1), 1) || !number_is(get(block, "-1"), 16) ||
+        if (inkling_json_array_size(bits) != 2 || !integer_is(inkling_json_array_at(bits, 0), 2) ||
+            !integer_is(inkling_json_array_at(bits, 1), 1) || !integer_is(get(block, "-1"), 16) ||
+            inkling_json_object_size(block) != 3 ||
             !string_is(get(block, "type"), "dynamic") || inkling_json_array_size(scale) != 2 ||
-            !number_is(inkling_json_array_at(scale, 0), 4) || !number_is(inkling_json_array_at(scale, 1), 3) ||
+            !integer_is(inkling_json_array_at(scale, 0), 4) || !integer_is(inkling_json_array_at(scale, 1), 3) ||
             !axis || inkling_json_type(axis) != INKLING_JSON_NULL ||
             !inkling_json_boolean(get(entry, "enable"), &enabled) || !enabled) goto invalid;
     }
@@ -254,7 +246,7 @@ static int require_tensor(Census *census, const char *prefix, const char *suffix
         fprintf(stderr, "verify: non-MTP tensor %s in optional MTP shard\n", name);
         return 0;
     }
-    if (census->names_only || (census->skip_mtp && class_id == 6)) return 1;
+    if (census->skip_mtp && class_id == 6) return 1;
     uint64_t shape[] = {a, b, c};
     int matches = tensor->dtype == dtype && tensor->rank == rank;
     for (uint32_t i = 0; matches && i < rank; i++) matches = tensor->shape[i] == shape[i];
@@ -432,7 +424,6 @@ int inkling_verify_model(const char *directory, int with_mtp, int metadata_only)
 {
     Census census = {0};
     InklingJsonDocument config = {0}, quant = {0};
-    InklingConfig parsed = {0};
     char path[4096], shard[64];
     int ok = 0;
     struct stat status;
@@ -440,29 +431,21 @@ int inkling_verify_model(const char *directory, int with_mtp, int metadata_only)
         fputs("verify: MODEL_DIR must be an existing directory\n",stderr);
         goto done;
     }
-    if (!path_join(path,sizeof(path),directory,"config.json") || !load_json(path,&config) ||
+    if (!path_join(path,sizeof(path),directory,"config.json") || !inkling_json_load_file(path,1024 * 1024,&config) ||
         !config_contract(config.root)) goto done;
     if (!layer_contract(get(get(config.root,"text_config"),"local_layer_ids"),0) ||
         !layer_contract(get(get(config.root,"mtp_config"),"local_layer_ids"),1)) {
         fputs("verify: local_layer_ids do not match the pinned text/MTP layouts\n",stderr);
         goto done;
     }
-    if (!inkling_config_load(path,&parsed)) goto done;
     if (!path_join(path,sizeof(path),directory,"model.safetensors.index.json") || !inkling_index_load(path,&census.index)) {
         fprintf(stderr,"verify: cannot load global index %s\n",path);
         goto done;
     }
-    if (!path_join(path,sizeof(path),directory,"hf_quant_config.json") || !load_json(path,&quant) ||
+    if (!path_join(path,sizeof(path),directory,"hf_quant_config.json") || !inkling_json_load_file(path,16 * 1024 * 1024,&quant) ||
         !quant_contract(get(quant.root,"quantization"))) goto done;
     census.seen = calloc((size_t)census.index.count,1);
-    census.names_only = 1;
-    if (!census.seen || !tensor_contract(&census,config.root,get(quant.root,"quantization"))) goto done;
-    census.names_only = 0;
-    if (census.index.count != 1360 || census.index.num_shards != 10 ||
-        census.index.total_size != UINT64_C(170733074592)) {
-        fputs("verify: index identity mismatch: expected 1360 tensors, 10 shards, total_size=170733074592\n",stderr);
-        goto done;
-    }
+    if (!census.seen) goto done;
     for (size_t i = 0; i < 10; i++) {
         if (i == 9) strcpy(shard,"mtp.safetensors");
         else snprintf(shard,sizeof(shard),"model-%05zu-of-00009.safetensors",i + 1);
@@ -492,6 +475,11 @@ int inkling_verify_model(const char *directory, int with_mtp, int metadata_only)
         }
     }
     if (!tensor_contract(&census,config.root,get(quant.root,"quantization"))) goto done;
+    if (census.index.count != 1360 || census.index.num_shards != 10 ||
+        census.index.total_size != UINT64_C(170733074592)) {
+        fputs("verify: index identity mismatch: expected 1360 tensors, 10 shards, total_size=170733074592\n",stderr);
+        goto done;
+    }
     uint64_t bytes = 0;
     for (size_t i = 0; i < 7; i++) bytes += census.bytes[i];
     uint64_t expected = census.index.total_size - (census.skip_mtp ? payload_sizes[9] : 0);
@@ -503,7 +491,6 @@ int inkling_verify_model(const char *directory, int with_mtp, int metadata_only)
 done:
     free(census.seen);
     inkling_index_free(&census.index);
-    inkling_config_free(&parsed);
     inkling_json_document_free(&config);
     inkling_json_document_free(&quant);
     return ok;

@@ -25,20 +25,6 @@ static int read_header_size(FILE *file, uint64_t *size)
     return 1;
 }
 
-int inkling_safetensors_header_size(const char *path, uint64_t *size)
-{
-    if (path == NULL || size == NULL) {
-        return 0;
-    }
-    FILE *file = fopen(path, "rb");
-    if (file == NULL) {
-        return 0;
-    }
-    int success = read_header_size(file, size);
-    fclose(file);
-    return success;
-}
-
 static int file_length(FILE *file, uint64_t *length)
 {
     if (fseek(file, 0, SEEK_END) != 0) {
@@ -172,7 +158,7 @@ int inkling_safetensors_parse_header(const char *json, uint64_t header_size, uin
     *tensors = NULL;
     *count = 0;
     if (json == NULL || header_size == 0 || header_size > SAFETENSORS_MAX_HEADER_SIZE ||
-        header_size >= SIZE_MAX || shard_size < 8 || header_size > shard_size - 8) {
+        header_size >= SIZE_MAX || shard_size < 8 || header_size > shard_size - 8 || json[0] != '{') {
         return 0;
     }
     InklingJsonDocument document = {0};
@@ -214,19 +200,17 @@ int inkling_safetensors_parse_header(const char *json, uint64_t header_size, uin
         tensor->byte_length = info.data_end - info.data_start;
     }
     inkling_json_document_free(&document);
-    if (success && used != 0) {
-        qsort(parsed, used, sizeof(*parsed), compare_offsets);
+    if (success) {
+        if (used != 0) qsort(parsed, used, sizeof(*parsed), compare_offsets);
         uint64_t end = 0;
         for (size_t position = 0; position < used; position++) {
-            if (parsed[position].byte_length == 0) {
-                continue;
-            }
-            if (parsed[position].data_offset < end) {
+            if (parsed[position].data_offset != end) {
                 success = 0;
                 break;
             }
             end = parsed[position].data_offset + parsed[position].byte_length;
         }
+        if (end != payload_size) success = 0;
     }
     if (!success) {
         free(parsed);

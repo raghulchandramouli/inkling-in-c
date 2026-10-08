@@ -123,11 +123,38 @@ static void test_invalid_headers(void)
 
     const char empty_and_scalar[] =
         "{\"b\":{\"dtype\":\"BF16\",\"shape\":[],\"data_offsets\":[0,2]},"
-        "\"empty\":{\"dtype\":\"U8\",\"shape\":[0,3],\"data_offsets\":[1,1]},"
+        "\"empty\":{\"dtype\":\"U8\",\"shape\":[0,3],\"data_offsets\":[2,2]},"
         "\"a\":{\"dtype\":\"U8\",\"shape\":[1],\"data_offsets\":[2,3]},"
         "\"__metadata__\":{\"format\":\"pt\"}}";
     expect(parse_header(empty_and_scalar, 3, &tensors, &count) && count == 3,
            "scalar, zero-element tensor, touching ranges and metadata accepted");
+    free(tensors);
+}
+
+static void test_payload_coverage(void)
+{
+    static const struct { const char *json; uint64_t bytes; } invalid[] = {
+        {"{}", 1},
+        {"{\"__metadata__\":{\"format\":\"pt\"}}", 1},
+        {"{\"w\":{\"dtype\":\"U8\",\"shape\":[1],\"data_offsets\":[0,1]}}", 2},
+        {"{\"w\":{\"dtype\":\"U8\",\"shape\":[1],\"data_offsets\":[1,2]}}", 2},
+        {"{\"a\":{\"dtype\":\"U8\",\"shape\":[1],\"data_offsets\":[0,1]},"
+         "\"b\":{\"dtype\":\"U8\",\"shape\":[1],\"data_offsets\":[2,3]}}", 3},
+        {"{\"a\":{\"dtype\":\"U8\",\"shape\":[2],\"data_offsets\":[0,2]},"
+         "\"empty\":{\"dtype\":\"U8\",\"shape\":[0],\"data_offsets\":[1,1]}}", 2},
+        {" {}", 0}
+    };
+    for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        InklingTensor *tensors = NULL;
+        size_t count = 99;
+        expect(!parse_header(invalid[i].json, invalid[i].bytes, &tensors, &count) &&
+               tensors == NULL && count == 0, "invalid payload coverage rejected");
+        free(tensors);
+    }
+    InklingTensor *tensors = NULL;
+    size_t count = 99;
+    expect(parse_header("{}", 0, &tensors, &count) && count == 0,
+           "empty shard with empty payload accepted");
     free(tensors);
 }
 
@@ -151,6 +178,9 @@ static void test_index(void)
     expect(inkling_index_find_tensor(NULL, "a") == NULL &&
            inkling_index_find_tensor(&index, NULL) == NULL, "NULL lookup rejected");
     char shard[2];
+    expect(inkling_index_find_shard(&index, "a", shard, sizeof(shard)) && strcmp(shard, "s") == 0,
+           "shard lookup copies the resolved name");
+    expect(!inkling_index_find_shard(&index, "missing", shard, sizeof(shard)), "missing shard lookup fails");
     expect(!inkling_index_find_shard(&index, "a", shard, 1), "short shard buffer rejected");
     const char *header =
         "{\"q\":{\"dtype\":\"U8\",\"shape\":[1],\"data_offsets\":[2,3]},"
@@ -239,6 +269,9 @@ static void test_actual_files(void)
     expect(!inkling_safetensors_read_tensor_data(path, UINT64_MAX, &info, output, sizeof(output)),
            "payload offset overflow rejected");
     expect(!inkling_safetensors_read_tensor_data(path, size, &info, output, 1), "short destination rejected");
+    expect(truncate(path, (off_t)(8 + size + 3)) == 0, "extra payload byte appended");
+    expect(!inkling_safetensors_load_shard(path, &tensors, &count) && tensors == NULL && count == 0,
+           "actual file size rejects unindexed trailing bytes");
     expect(truncate(path, (off_t)(8 + size + 1)) == 0, "shard payload truncated");
     expect(!inkling_safetensors_load_shard(path, &tensors, &count) && tensors == NULL && count == 0,
            "actual file size rejects truncated payload");
@@ -261,6 +294,7 @@ static void test_pinned(const char *directory)
         return;
     }
     expect(index.count == 1360 && index.num_shards == 10, "pinned index identity");
+    expect(index.total_size == UINT64_C(170733074592), "pinned index total size");
     size_t dtype_counts[5] = {0};
     uint64_t total_bytes = 0;
     uint64_t mtp_bytes = 0;
@@ -354,6 +388,7 @@ int main(int argc, char **argv)
     }
     test_dtypes();
     test_invalid_headers();
+    test_payload_coverage();
     test_index();
     test_actual_files();
     test_pinned(argv[1]);

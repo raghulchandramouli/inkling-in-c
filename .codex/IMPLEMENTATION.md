@@ -54,16 +54,17 @@ Current files:
 
 ```text
 include/inkling/inkling.h          public types and current I/O/config API
-src/cli/inkling_run.c              config-inspection CLI stub
+src/cli/inkling_run.c              config inspection and --verify-model CLI
 src/io/inkling_config.c            typed nested config reader; owns exact local-layer IDs
 src/io/inkling_index.c             FNV-1a tensor catalogue and atomic shard binding
-src/io/inkling_json.c/.h           strict shared JSON DOM parser
+src/io/inkling_json.c/.h           strict shared JSON DOM parser and bounded file loader
 src/io/inkling_safetensors.c       header scan and payload read
+src/io/inkling_verify.c            pinned checkpoint contract and tensor census
 tests/test_config.c                config validation
-tests/test_index.c                 index lookup and real-header lookup
 tests/test_json.c                  JSON syntax, bounds, and real-fixture tests
 tests/test_catalogue.c             all 1,360 tensors, dtypes, collisions, and corrupt shards
 tests/test_safetensors.c           synthetic payload and real-header metadata
+tests/test_verify.py               CLI, sparse real-file validation, and MTP gate
 tests/fixtures/checkpoint/         pinned config/index/all shard headers
 tools/fetch_checkpoint_metadata.py metadata-only checkpoint fetcher
 tools/make_tiny_fixture.py         tiny SafeTensors generator
@@ -173,7 +174,7 @@ tests/
   unit/
     test_config.c
     test_safetensors.c
-    test_index.c
+    test_catalogue.c
     test_bf16.c
     test_nvfp4.c
     test_ops.c
@@ -260,8 +261,9 @@ typedef struct {
 All additions and multiplications used to compute offsets, element counts, and byte
 sizes require checked overflow. SafeTensors offsets are relative to the data section,
 which begins at `8 + header_size`. `inkling_index_load_shard` checks intervals
-against the actual file length and rejects overlaps and dtype/shape/byte-count
-mismatches before publishing metadata. Until a shard is bound, its tensor dtype
+against the actual file length and rejects gaps, overlaps, unindexed trailing
+bytes, and dtype/shape/byte-count mismatches before publishing metadata. Empty
+tensors must sit at payload boundaries. Until a shard is bound, its tensor dtype
 is UNKNOWN. `inkling_index_bind_header` is the explicit-size entry point for
 metadata-only fixtures or callers supplying a trusted shard length; it does not
 prove that payload bytes exist on disk.

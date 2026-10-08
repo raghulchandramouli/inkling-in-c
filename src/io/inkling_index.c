@@ -7,32 +7,6 @@
 
 #define INDEX_MAX_BYTES (16L * 1024L * 1024L)
 
-static char *read_text_file(const char *path, size_t *size)
-{
-    FILE *file = fopen(path, "rb");
-    if (file == NULL) {
-        return NULL;
-    }
-    long length = -1;
-    if (fseek(file, 0, SEEK_END) == 0) {
-        length = ftell(file);
-    }
-    if (length < 0 || length > INDEX_MAX_BYTES || fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return NULL;
-    }
-    char *text = malloc((size_t)length + 1);
-    if (text == NULL || fread(text, 1, (size_t)length, file) != (size_t)length) {
-        free(text);
-        fclose(file);
-        return NULL;
-    }
-    fclose(file);
-    text[length] = '\0';
-    *size = (size_t)length;
-    return text;
-}
-
 static uint64_t name_hash(const char *name)
 {
     uint64_t hash = UINT64_C(14695981039346656037);
@@ -61,19 +35,16 @@ int inkling_index_load(const char *path, InklingIndex *index)
     if (path == NULL || index == NULL) {
         return 0;
     }
-    size_t length = 0;
-    char *json = read_text_file(path, &length);
-    if (json == NULL) {
+    InklingJsonDocument document = {0};
+    if (!inkling_json_load_file(path, INDEX_MAX_BYTES, &document)) {
         return 0;
     }
-    InklingJsonDocument document = {0};
-    int success = inkling_json_parse(json, length, &document, NULL);
-    free(json);
+    int success = 1;
     InklingIndex parsed = {0};
     const InklingJsonValue *map = inkling_json_object_get(document.root, "weight_map");
     const InklingJsonValue *metadata = inkling_json_object_get(document.root, "metadata");
     size_t count = inkling_json_object_size(map);
-    if (!success || inkling_json_type(map) != INKLING_JSON_OBJECT || count == 0 ||
+    if (inkling_json_type(map) != INKLING_JSON_OBJECT || count == 0 ||
         count > SIZE_MAX / sizeof(*parsed.entries) || count > SIZE_MAX / 2 ||
         !inkling_json_number_u64(inkling_json_object_get(metadata, "total_size"),
                                  &parsed.total_size)) {
@@ -98,7 +69,6 @@ int inkling_index_load(const char *path, InklingIndex *index)
         success = 0;
         goto done;
     }
-    parsed.capacity = (uint64_t)count;
     for (size_t position = 0; position < count; position++) {
         size_t name_length = 0, shard_length = 0;
         const char *name = inkling_json_object_key_at(map, position, &name_length);
