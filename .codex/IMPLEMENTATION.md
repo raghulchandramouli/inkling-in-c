@@ -57,6 +57,7 @@ include/inkling/inkling.h          public types and current I/O/config API
 src/cli/inkling_run.c              config inspection and --verify-model CLI
 src/core/inkling_alloc.c/.h        checked size arithmetic and scalar buffer allocation
 src/core/inkling_bf16.c/.h         bit-exact BF16-to-F32 widening
+src/core/inkling_nvfp4.c/.h        validated NVFP4 layout, byte offsets, scalar block decode
 src/io/inkling_config.c            typed nested config reader; owns exact local-layer IDs
 src/io/inkling_index.c             FNV-1a tensor catalogue and atomic shard binding
 src/io/inkling_json.c/.h           strict shared JSON DOM parser and bounded file loader
@@ -69,9 +70,13 @@ tests/test_safetensors.c           synthetic payload and real-header metadata
 tests/test_verify.py               CLI, sparse real-file validation, and MTP gate
 tests/test_alloc.c                 size boundaries, ownership, and forced malloc failure
 tests/test_bf16.c                  exhaustive BF16 bit patterns and known values
+tests/test_nvfp4.c                 exhaustive low-precision codes and real block reconstruction
+tests/test_nvfp4_fixture.py        offline provenance, checksums, and sample coverage
+tests/fixtures/nvfp4.json          real payload samples and independent float32 oracle
 tests/fixtures/checkpoint/         pinned config/index/all shard headers
 tools/fetch_checkpoint_metadata.py metadata-only checkpoint fetcher
 tools/make_tiny_fixture.py         tiny SafeTensors generator
+tools/fetch_nvfp4_fixture.py       bounded range extraction and pinned CPU reference execution
 makefile                           C99 build and current tests
 ```
 
@@ -391,14 +396,21 @@ checkpoint quant config as:
 Conceptually, for logical element `i`:
 
 ```text
-w[i] = E2M1[nibble(i)] * E4M3(block_scale[i / 16]) * global_scale
+combined_scale = float32(E4M3(block_scale[i / 16]) * global_scale[expert])
+w[i] = float32(E2M1[nibble(i)] * combined_scale)
 ```
 
-The exact nibble order, E4M3 variant, scale layout/padding, `scale2` convention, and
-matrix strides must be proven from real Small checkpoint bytes and the pinned NVIDIA
-loader. Create a fixture containing raw bytes plus independently decoded FP32 values.
-The fixture must detect swapped nibbles, wrong block axis, ignored padding, wrong
-E4M3 special-value behavior, and applying `scale2` in the wrong direction.
+Phase B2 establishes the exported layout using 18 real samples (2,424 checkpoint
+bytes) and pinned Transformer Engine/Model Optimizer CPU references. Details and
+regeneration instructions are in `docs/NVFP4.md`. Packing is low nibble first;
+scales are contiguous E4M3FN with no padding, one per final-axis group of 16;
+`scale2` multiplies per expert. `w13` rows interleave gate/up. `.input_amax` is an
+activation statistic, not a weight scale. The scalar API validates stored shapes,
+computes checked byte offsets across separately indexed tensors, and reconstructs
+one block without allocation. Tests cover every E2M1/E4M3FN code and compare all
+576 sampled outputs bit-for-bit. Transformer Engine preserves negative zero where
+Model Optimizer canonicalizes it; the C contract follows Transformer Engine and
+the real samples also match Model Optimizer numerically.
 
 Implement in two stages:
 
@@ -750,7 +762,7 @@ tensor's dtype, shape, shard, and byte range without loading tensor payloads.
 ### Phase B: establish numerical primitives
 
 1. [x] Add checked allocation/overflow and BF16 helpers.
-2. Prove NVFP4 layout from real bytes.
+2. [x] Prove NVFP4 layout from real bytes.
 3. Add scalar BF16/NVFP4 matvec, norm, activation, softmax, top-k, and convolution.
 4. Generate and commit small oracle fixtures.
 

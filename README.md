@@ -16,6 +16,11 @@ BF16 bit patterns. The default build uses the strict reference warnings and
 `-ffp-contract=off`. Run `make test-sanitize` for the complete suite with ASan/UBSan;
 its binaries are kept separately under `bin/sanitize`.
 
+NVFP4 scalar decoding now has a real-byte oracle: 18 samples from routed weights
+and their separately indexed auxiliaries, checked against pinned NVIDIA CPU
+references. Offline tests cover all E2M1/E4M3FN encodings, byte offsets, malformed
+layouts and exact block outputs. See [the proven layout and regeneration steps](docs/NVFP4.md).
+
 `InklingIndex` is the tensor catalogue. Load the index with `inkling_index_load`,
 bind each real shard with `inkling_index_load_shard`, then resolve tensors with
 `inkling_index_find_tensor`. Entries have UNKNOWN dtype until bound. Free the

@@ -50,6 +50,11 @@ The checkpoint quantization record identifies NVFP4, a group size of 16, and a
 single `-1` block axis. That checkpoint evidence takes precedence over generic
 NVFP4 documentation that describes 2D weight scaling as a default option.
 
+Phase B2's real payload ranges, source hashes, independent reference results and
+tool versions are recorded in `tests/fixtures/nvfp4.json`. See
+[`NVFP4.md`](NVFP4.md) for the established layout, reference zero-sign difference,
+and bounded regeneration procedure. The source revisions below are unchanged.
+
 ## Architecture reference
 
 ### Hugging Face Transformers
