@@ -55,6 +55,8 @@ Current files:
 ```text
 include/inkling/inkling.h          public types and current I/O/config API
 src/cli/inkling_run.c              config inspection and --verify-model CLI
+src/core/inkling_alloc.c/.h        checked size arithmetic and scalar buffer allocation
+src/core/inkling_bf16.c/.h         bit-exact BF16-to-F32 widening
 src/io/inkling_config.c            typed nested config reader; owns exact local-layer IDs
 src/io/inkling_index.c             FNV-1a tensor catalogue and atomic shard binding
 src/io/inkling_json.c/.h           strict shared JSON DOM parser and bounded file loader
@@ -65,6 +67,8 @@ tests/test_json.c                  JSON syntax, bounds, and real-fixture tests
 tests/test_catalogue.c             all 1,360 tensors, dtypes, collisions, and corrupt shards
 tests/test_safetensors.c           synthetic payload and real-header metadata
 tests/test_verify.py               CLI, sparse real-file validation, and MTP gate
+tests/test_alloc.c                 size boundaries, ownership, and forced malloc failure
+tests/test_bf16.c                  exhaustive BF16 bit patterns and known values
 tests/fixtures/checkpoint/         pinned config/index/all shard headers
 tools/fetch_checkpoint_metadata.py metadata-only checkpoint fetcher
 tools/make_tiny_fixture.py         tiny SafeTensors generator
@@ -353,6 +357,24 @@ bit exact: move the 16 bits into the high half of an IEEE-754 `uint32_t`, then
 `memcpy` to `float`. Accumulate dot products in float32 initially. Compile with
 `-ffp-contract=off` for reference builds so compiler FMA choices do not move gates or
 top-k boundaries.
+
+`inkling_bf16_to_f32` implements this widening in `src/core/inkling_bf16.c`.
+It requires IEEE-754 binary32 storage and checks float size/range at build time.
+The test checks all 65,536 BF16 bit patterns, including signaling NaN payloads,
+without comparing NaNs as floating-point values.
+
+### Scalar buffer allocation
+
+`src/core/inkling_alloc.h` exposes checked `size_t` addition and multiplication,
+plus `inkling_alloc_array(uint64_t count, size_t element_size, void **out)`.
+Arithmetic helpers leave outputs unchanged on failure. Allocation rejects a zero
+element size, counts that cannot fit `size_t`, multiplication overflow, and byte
+lengths beyond `PTRDIFF_MAX`. A zero count succeeds with a NULL buffer. Allocation
+clears the output on failure; callers must release any prior allocation first.
+Successful nonempty buffers are uninitialized, have `malloc` alignment, and are
+owned by the caller, who releases them with `free`. No special allocator is needed
+for the scalar path. Tests redirect `malloc` only in the allocation test object to
+exercise failure deterministically without exhausting system memory.
 
 ### NVFP4
 
@@ -709,6 +731,9 @@ make native
 Generated fixtures must be reproducible but ordinary `make test` must require no
 network, checkpoint, Python package installation, or model weights.
 
+The reference warning flags above are the default. `make test-sanitize` runs the
+same suite with ASan/UBSan in `bin/sanitize`, leaving normal binaries in `bin`.
+
 ## 14. Implementation sequence
 
 ### Phase A: make metadata trustworthy
@@ -724,7 +749,7 @@ tensor's dtype, shape, shard, and byte range without loading tensor payloads.
 
 ### Phase B: establish numerical primitives
 
-1. Add checked allocation/overflow and BF16 helpers.
+1. [x] Add checked allocation/overflow and BF16 helpers.
 2. Prove NVFP4 layout from real bytes.
 3. Add scalar BF16/NVFP4 matvec, norm, activation, softmax, top-k, and convolution.
 4. Generate and commit small oracle fixtures.
