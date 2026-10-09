@@ -9,6 +9,13 @@ hash collisions, shape/byte arithmetic, payload gaps/overlaps, trailing bytes,
 and truncated shards. Tensor ranges must cover the full payload, as required by
 the [SafeTensors format](https://github.com/safetensors/safetensors#format).
 
+Phase B's first primitives are in `src/core/`: checked size arithmetic, buffer
+allocation with explicit ownership/error behavior, and bit-exact BF16-to-F32
+widening. Tests cover allocation boundaries and forced failure, plus all 65,536
+BF16 bit patterns. The default build uses the strict reference warnings and
+`-ffp-contract=off`. Run `make test-sanitize` for the complete suite with ASan/UBSan;
+its binaries are kept separately under `bin/sanitize`.
+
 `InklingIndex` is the tensor catalogue. Load the index with `inkling_index_load`,
 bind each real shard with `inkling_index_load_shard`, then resolve tensors with
 `inkling_index_find_tensor`. Entries have UNKNOWN dtype until bound. Free the
