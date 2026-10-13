@@ -58,6 +58,7 @@ src/cli/inkling_run.c              config inspection and --verify-model CLI
 src/core/inkling_alloc.c/.h        checked size arithmetic and scalar buffer allocation
 src/core/inkling_bf16.c/.h         bit-exact BF16-to-F32 widening
 src/core/inkling_nvfp4.c/.h        validated NVFP4 layout, byte offsets, scalar block decode
+src/core/inkling_math.c/.h         scalar matvec, norm, activations, selection and convolution
 src/io/inkling_config.c            typed nested config reader; owns exact local-layer IDs
 src/io/inkling_index.c             FNV-1a tensor catalogue and atomic shard binding
 src/io/inkling_json.c/.h           strict shared JSON DOM parser and bounded file loader
@@ -73,10 +74,13 @@ tests/test_bf16.c                  exhaustive BF16 bit patterns and known values
 tests/test_nvfp4.c                 exhaustive low-precision codes and real block reconstruction
 tests/test_nvfp4_fixture.py        offline provenance, checksums, and sample coverage
 tests/fixtures/nvfp4.json          real payload samples and independent float32 oracle
+tests/test_math.c                  independent primitive comparisons and invalid-input checks
+tests/fixtures/primitives.json     43 seeded/boundary CPU reference cases
 tests/fixtures/checkpoint/         pinned config/index/all shard headers
 tools/fetch_checkpoint_metadata.py metadata-only checkpoint fetcher
 tools/make_tiny_fixture.py         tiny SafeTensors generator
 tools/fetch_nvfp4_fixture.py       bounded range extraction and pinned CPU reference execution
+tools/emit_primitive_fixtures.py   pinned primitive oracle generator
 makefile                           C99 build and current tests
 ```
 
@@ -434,6 +438,12 @@ Compute the variance in float32 or wider reference accumulation. Attention q/k
 normalization is per head. Because q and k are normalized, attention scaling is
 `1 / head_dim`, not `1 / sqrt(head_dim)`.
 
+Phase B3 implements these scalar operations in `src/core/inkling_math.c`. See
+`docs/PRIMITIVES.md` for capacities, aliasing, error behavior, deterministic ties,
+and per-operation tolerances against 43 independently generated cases. Matvec
+accumulates in float32; norm and softmax use wider reductions. Full Gate 1
+consolidation/sign-off remains Phase B4.
+
 ### Short convolution
 
 Each layer has four causal depthwise kernel-4 convolutions:
@@ -443,8 +453,9 @@ Each layer has four causal depthwise kernel-4 convolutions:
 3. attention sublayer output before residual addition;
 4. MLP output before residual addition.
 
-The attention-output and MLP-output convolutions include the input residual inside
-the upstream short-convolution module's result. Match the pinned oracle exactly.
+All four convolutions include their own input residual inside the upstream
+short-convolution module's result. The attention-output and MLP-output paths then
+add a separate decoder-layer residual. Match the pinned oracle exactly.
 Incremental state stores the previous three values for every channel and every one
 of the four streams. Prefill and token-by-token execution must produce matching
 outputs.
@@ -763,7 +774,7 @@ tensor's dtype, shape, shard, and byte range without loading tensor payloads.
 
 1. [x] Add checked allocation/overflow and BF16 helpers.
 2. [x] Prove NVFP4 layout from real bytes.
-3. Add scalar BF16/NVFP4 matvec, norm, activation, softmax, top-k, and convolution.
+3. [x] Add scalar BF16/NVFP4 matvec, norm, activation, softmax, top-k, and convolution.
 4. Generate and commit small oracle fixtures.
 
 Exit: all primitive tests match the independent oracle and sanitizers pass.
