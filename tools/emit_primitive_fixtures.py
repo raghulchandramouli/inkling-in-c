@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import math
 import platform
 import random
 import struct
@@ -57,10 +58,7 @@ def generate(output):
         return torch.tensor(values, dtype=torch.float32)
 
     def random_tensor(*shape):
-        count = 1
-        for dim in shape:
-            count *= dim
-        return tensor([rng.uniform(-2, 2) for _ in range(count)]).reshape(shape)
+        return tensor([rng.uniform(-2, 2) for _ in range(math.prod(shape))]).reshape(shape)
 
     def record(name, **values):
         return dict(name=name, **{key: bits(value.detach(), torch) if isinstance(value, torch.Tensor)
@@ -94,13 +92,14 @@ def generate(output):
                                     x=v, expected=torch.mv(w.float(), v)))
 
     def nv_case(name, packed, scales, globals_, rows, columns, x):
+        packed_tensor = torch.tensor(packed, dtype=torch.uint8).reshape(-1, rows, columns // 2)
+        scale_tensor = torch.tensor(scales, dtype=torch.uint8).view(torch.float8_e4m3fn).reshape(-1, rows, columns // 16)
         expected = []
         for e, global_ in enumerate(globals_):
             oracle = modelopt_class()
-            oracle._quantized_data = torch.tensor(packed, dtype=torch.uint8).reshape(-1, rows, columns // 2)[e]
+            oracle._quantized_data = packed_tensor[e]
             oracle.metadata = {"shape": (rows, columns), "dtype": torch.float32}
-            scale = torch.tensor(scales, dtype=torch.uint8).view(torch.float8_e4m3fn).reshape(-1, rows, columns // 16)[e]
-            decoded = oracle.dequantize(dtype=torch.float32, scale=scale,
+            decoded = oracle.dequantize(dtype=torch.float32, scale=scale_tensor[e],
                                        double_scale=tensor(global_), block_sizes={-1: 16})
             expected.append(torch.mv(decoded, x))
         result["nvfp4"].append(record(name, experts=len(globals_), rows=rows, columns=columns,

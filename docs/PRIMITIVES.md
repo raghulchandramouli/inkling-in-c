@@ -128,8 +128,7 @@ source files (no checkpoint download). The B2 environment can be reused:
 ```sh
 python3.11 -m venv .context/nvfp4-venv
 .context/nvfp4-venv/bin/pip install 'torch==2.8.0'
-.context/nvfp4-venv/bin/python -B tools/emit_primitive_fixtures.py
-# Compare without overwriting the committed fixture:
+# Regenerate and compare without overwriting the committed fixture:
 .context/nvfp4-venv/bin/python -B tools/emit_primitive_fixtures.py --output .context/primitives.json
 cmp tests/fixtures/primitives.json .context/primitives.json
 ```

@@ -6,8 +6,7 @@
 
 static int fits(size_t count, size_t width)
 {
-    size_t bytes;
-    return count > 0 && inkling_size_mul(count, width, &bytes) && bytes <= PTRDIFF_MAX;
+    return count > 0 && count <= (size_t)PTRDIFF_MAX / width;
 }
 
 static int finite_vector(const float *x, size_t n)
@@ -58,22 +57,22 @@ int inkling_nvfp4_matvec(const InklingNvfp4Layout *layout, size_t expert,
         checked.packed_bytes != layout->packed_bytes ||
         checked.scale_bytes != layout->scale_bytes ||
         checked.scale2_bytes != layout->scale2_bytes || expert >= checked.experts ||
-        !fits(checked.packed_bytes, 1) || !fits(checked.scale_bytes, 1) ||
-        !fits(checked.experts, sizeof(*scale2)) || !fits(checked.rows, sizeof(*out)) ||
+        !fits(checked.packed_bytes, 1) ||
         !fits(checked.columns, sizeof(*x)) || packed_bytes < checked.packed_bytes ||
         scale_bytes < checked.scale_bytes || scale2_count < checked.experts ||
         x_count < checked.columns || out_count < checked.rows ||
-        !isfinite(scale2[expert]) || scale2[expert] <= 0 ||
         !finite_vector(x, checked.columns)) return 0;
+    InklingNvfp4Offsets offsets;
+    if (!inkling_nvfp4_offsets(&checked, expert, 0, 0, &offsets)) return 0;
     for (size_t row = 0; row < checked.rows; row++) {
         float sum = 0;
         for (size_t block = 0; block < checked.columns / 16; block++) {
-            InklingNvfp4Offsets offsets;
             float decoded[16];
-            if (!inkling_nvfp4_offsets(&checked, expert, row, block, &offsets) ||
-                !inkling_nvfp4_decode_block(packed + offsets.packed, 8,
+            if (!inkling_nvfp4_decode_block(packed + offsets.packed, 8,
                     scales[offsets.scale], scale2[expert], decoded, 16)) return 0;
             for (size_t i = 0; i < 16; i++) sum += decoded[i] * x[block * 16 + i];
+            offsets.packed += 8;
+            offsets.scale++;
         }
         if (!isfinite(sum)) return 0;
         out[row] = sum;
@@ -102,7 +101,7 @@ int inkling_rmsnorm(const float *x, size_t n, const float *weights,
 static float sigmoid(float x)
 {
     float exponential = expf(-fabsf(x));
-    return x >= 0 ? 1.0f / (1.0f + exponential) : exponential / (1.0f + exponential);
+    return (x >= 0 ? 1.0f : exponential) / (1.0f + exponential);
 }
 
 int inkling_sigmoid(const float *x, size_t n, float *out, size_t out_count)
@@ -166,7 +165,7 @@ int inkling_conv4(const float *x, size_t x_count, size_t tokens, size_t channels
     if (x == NULL || weights == NULL || state == NULL || out == NULL ||
         !inkling_size_mul(tokens, channels, &count) || !fits(count, sizeof(*x)) ||
         !inkling_size_mul(channels, 4, &kernel_count) || !fits(kernel_count, sizeof(*weights)) ||
-        !inkling_size_mul(channels, 3, &history_count) || !fits(history_count, sizeof(*state)) ||
+        !inkling_size_mul(channels, 3, &history_count) ||
         x_count < count || out_count < count || weight_count < kernel_count ||
         state_count < history_count || !finite_vector(x, count) ||
         !finite_vector(weights, kernel_count) || !finite_vector(state, history_count)) return 0;
