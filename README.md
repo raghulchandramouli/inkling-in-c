@@ -21,6 +21,12 @@ and their separately indexed auxiliaries, checked against pinned NVIDIA CPU
 references. Offline tests cover all E2M1/E4M3FN encodings, byte offsets, malformed
 layouts and exact block outputs. See [the proven layout and regeneration steps](docs/NVFP4.md).
 
+Phase B3 adds scalar BF16/NVFP4 matvec, RMSNorm, SiLU, sigmoid, stable softmax,
+deterministic top-k, and stateful kernel-4 convolution. Tests compare 43 independent
+CPU reference cases, check buffer/overflow failures, and verify convolution state
+across prefill and incremental calls. See [primitive contracts, tolerances, and
+fixture regeneration](docs/PRIMITIVES.md).
+
 `InklingIndex` is the tensor catalogue. Load the index with `inkling_index_load`,
 bind each real shard with `inkling_index_load_shard`, then resolve tensors with
 `inkling_index_find_tensor`. Entries have UNKNOWN dtype until bound. Free the

@@ -79,6 +79,11 @@ multimodal execution.
 Transformers operates on logical tensors and is not by itself evidence for the
 packed NVFP4 on-disk nibble order or auxiliary-tensor storage.
 
+Phase B3 executes the pinned RMSNorm and short-convolution CPU bodies directly
+for `tests/fixtures/primitives.json`; the fixture records their source hash and
+PyTorch version. See [PRIMITIVES.md](PRIMITIVES.md) for numerical tolerances and
+the explicit portable top-k tie policy.
+
 ## Serving implementation references
 
 ### SGLang
