@@ -445,11 +445,10 @@ normalization is per head. Because q and k are normalized, attention scaling is
 Phase B3 implements these scalar operations in `src/core/inkling_math.c`. See
 `docs/PRIMITIVES.md` for capacities, aliasing, error behavior, deterministic ties,
 and per-operation tolerances against 43 independently generated cases. Matvec
-accumulates in float32; norm and softmax use wider reductions. B4 now consolidates
-regeneration,
-source verification, local code identity, offline primitive audits and mutation
-acceptance. Final B4/Gate 1 sign-off remains pending integrated acceptance, including
-the fresh-checkout offline suite and compiler/sanitizer evidence.
+accumulates in float32; norm and softmax use wider reductions. B4 consolidates
+regeneration, source verification, local code identity, offline primitive audits
+and mutation acceptance. Phase B and Gate 1 passed integrated acceptance on
+2026-10-14. The verification commands and environment are in `docs/PRIMITIVES.md`.
 
 ### Short convolution
 
@@ -674,16 +673,24 @@ order; do not optimize a layer whose gate is red.
 - required NVFP4 auxiliaries resolve across shards;
 - malformed JSON, overflow, truncation, overlap, wrong dtype, and missing file tests.
 
-### Gate 1: scalar primitives
+### Gate 1: scalar primitives (complete)
 
 - BF16 widening bit patterns;
 - E2M1 table and nibble order;
 - E4M3 scale decode and two-level NVFP4 reconstruction;
-- RMSNorm, SiLU, softmax, top-k/ties, and causal depthwise convolution;
+- RMSNorm, SiLU, sigmoid, softmax, top-k/ties, and causal depthwise convolution;
 - BF16 and NVFP4 matrix-vector products.
 
 Use generated random cases plus at least one fixture cut from real Small checkpoint
 bytes.
+
+Completed on 2026-10-14. A fresh tracked-file checkout passed the complete normal
+and ASan/UBSan suites with network access denied and without PyTorch installed in
+the ordinary-test Python. Two cache-only regenerations matched both committed
+numerical fixtures and their identity manifest byte for byte. All ten deliberate
+implementation mutations failed at the required assertions. Apple Clang 21 was
+available; genuine GCC was not installed. Full attention and model parity remain
+the later gates below.
 
 ### Gate 2: isolated architecture blocks
 
@@ -782,7 +789,7 @@ tensor's dtype, shape, shard, and byte range without loading tensor payloads.
 1. [x] Add checked allocation/overflow and BF16 helpers.
 2. [x] Prove NVFP4 layout from real bytes.
 3. [x] Add scalar BF16/NVFP4 matvec, norm, activation, softmax, top-k, and convolution.
-4. Generate and commit small oracle fixtures.
+4. [x] Generate and commit small oracle fixtures, audit provenance, and pass Gate 1.
 
 Exit: all primitive tests match the independent oracle and sanitizers pass.
 

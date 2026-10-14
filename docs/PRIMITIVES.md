@@ -186,5 +186,28 @@ stale mutation text and survivors fail the runner. Temporary builds do not alter
 the checkout. Compiler names can be aliases, so acceptance records the compiler's
 reported version, not merely its executable name.
 
-B4 tooling is implemented; fresh-checkout offline acceptance, compiler/sanitizer
-evidence and final Gate 1 sign-off remain pending integration validation.
+## Gate 1 acceptance
+
+Phase B and Gate 1 passed on 2026-10-14. A fresh tracked-file checkout passed
+`make test CC=clang` and `make test-sanitize CC=clang` with network access denied.
+The ordinary-test Python was 3.9.6 with no PyTorch installation. Apple Clang
+21.0.0 was available. The `gcc` executable was a Clang alias; genuine GCC was
+not installed.
+
+Two cache-only `make oracle-fixtures` runs matched each other and the committed
+numerical fixtures and manifest byte for byte. The mutation runner passed both
+pristine binaries and rejected all ten deliberate changes at the expected
+assertions. Its report identifies the six copied source, test, and fixture inputs
+by SHA-256. The B2 raw checkpoint bytes and B3's 43 cases remain unchanged.
+
+The fresh checkout used `git archive HEAD` in an empty directory and ran the
+normal and sanitizer commands under macOS `sandbox-exec` with this policy:
+
+```text
+(version 1)(allow default)(deny network*)
+```
+
+The policy also denied an explicit socket probe with `PermissionError`.
+Platforms without that command can run the portable suites in a container or
+environment that denies network access. Later gates verify attention, model
+logits, generation, and performance.
