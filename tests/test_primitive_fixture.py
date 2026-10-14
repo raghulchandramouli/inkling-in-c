@@ -1,4 +1,3 @@
-"""Offline fixture provenance and schema audit; Python standard library only."""
 from copy import deepcopy
 import json
 import math

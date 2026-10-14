@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Prove committed primitive tests reject isolated implementation mutations."""
 import argparse
+from collections import namedtuple
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -9,29 +11,29 @@ import shutil
 import subprocess
 import tempfile
 
-# name, source, original, replacement, test, fixture, required failure marker
+Mutation = namedtuple("Mutation", "name source old new test fixture marker")
 MUTATIONS = (
-    ("packing_order", "inkling_nvfp4.c", "((i % 2) * 4)", "((1 - i % 2) * 4)",
-     "test_nvfp4", "nvfp4.json", "float_bits(actual[i]) =="),
-    ("scale_direction", "inkling_nvfp4.c", "local_scale * scale2", "local_scale / scale2",
-     "test_nvfp4", "nvfp4.json", "float_bits(actual[i]) =="),
-    ("block_scale_index", "inkling_math.c", "offsets.scale++;", "offsets.scale += 0;",
-     "test_math", "primitives.json", "matvec["),
-    ("expert_scale_index", "inkling_math.c", "scale2[expert]", "scale2[0]",
-     "test_math", "primitives.json", "matvec["),
-    ("bf16_stride", "inkling_math.c", "weights[row * columns + col]", "weights[col * rows + row]",
-     "test_math", "primitives.json", "matvec["),
-    ("topk_ties", "inkling_math.c", "x[indices[position]] >= x[i]", "x[indices[position]] > x[i]",
-     "test_math", "primitives.json", "indices[i] == integer(inkling_json_array_at(values, i))"),
-    ("convolution_state", "inkling_math.c", "history[2] = current;", "history[2] = sum;",
-     "test_math", "primitives.json", "memcmp(state, final, history * sizeof(float)) == 0"),
-    ("convolution_residual", "inkling_math.c", "sum += current;", "sum += 0;",
-     "test_math", "primitives.json", "conv["),
-    ("convolution_kernel", "inkling_math.c", "history[tap] * kernel[tap]", "history[tap] * kernel[3 - tap]",
-     "test_math", "primitives.json", "conv["),
-    ("masked_probability", "inkling_math.c", "(float)exp((double)x[i] - maximum)",
-     "(x[i] == -INFINITY ? 1e-12f : (float)exp((double)x[i] - maximum))",
-     "test_math", "primitives.json", "out[i] == 0.0f"),
+    Mutation("packing_order", "inkling_nvfp4.c", "((i % 2) * 4)", "((1 - i % 2) * 4)",
+             "test_nvfp4", "nvfp4.json", "float_bits(actual[i]) =="),
+    Mutation("scale_direction", "inkling_nvfp4.c", "local_scale * scale2", "local_scale / scale2",
+             "test_nvfp4", "nvfp4.json", "float_bits(actual[i]) =="),
+    Mutation("block_scale_index", "inkling_math.c", "offsets.scale++;", "offsets.scale += 0;",
+             "test_math", "primitives.json", "matvec["),
+    Mutation("expert_scale_index", "inkling_math.c", "scale2[expert]", "scale2[0]",
+             "test_math", "primitives.json", "matvec["),
+    Mutation("bf16_stride", "inkling_math.c", "weights[row * columns + col]", "weights[col * rows + row]",
+             "test_math", "primitives.json", "matvec["),
+    Mutation("topk_ties", "inkling_math.c", "x[indices[position]] >= x[i]", "x[indices[position]] > x[i]",
+             "test_math", "primitives.json", "indices[i] == integer(inkling_json_array_at(values, i))"),
+    Mutation("convolution_state", "inkling_math.c", "history[2] = current;", "history[2] = sum;",
+             "test_math", "primitives.json", "memcmp(state, final, history * sizeof(float)) == 0"),
+    Mutation("convolution_residual", "inkling_math.c", "sum += current;", "sum += 0;",
+             "test_math", "primitives.json", "conv["),
+    Mutation("convolution_kernel", "inkling_math.c", "history[tap] * kernel[tap]", "history[tap] * kernel[3 - tap]",
+             "test_math", "primitives.json", "conv["),
+    Mutation("masked_probability", "inkling_math.c", "(float)exp((double)x[i] - maximum)",
+             "(x[i] == -INFINITY ? 1e-12f : (float)exp((double)x[i] - maximum))",
+             "test_math", "primitives.json", "out[i] == 0.0f"),
 )
 
 
@@ -63,7 +65,14 @@ def main(argv=None):
         for name in ("src", "include", "tests"):
             shutil.copytree(root / name, directory / name)
         shutil.copy2(root / "makefile", directory / "makefile")
-        for target, fixture in sorted({(m[4], m[5]) for m in MUTATIONS}):
+        inputs = ({f"src/core/{m.source}" for m in MUTATIONS}
+                  | {f"tests/{m.test}.c" for m in MUTATIONS}
+                  | {f"tests/fixtures/{m.fixture}" for m in MUTATIONS})
+        report["source_sha256"] = {
+            name: hashlib.sha256((directory / name).read_bytes()).hexdigest()
+            for name in sorted(inputs)
+        }
+        for target, fixture in sorted({(m.test, m.fixture) for m in MUTATIONS}):
             binary = build(directory, args.cc, target, "bin/baseline")
             result = run([str(binary), f"tests/fixtures/{fixture}"], directory)
             if result.returncode != 0:

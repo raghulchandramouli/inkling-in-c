@@ -66,7 +66,6 @@ def reference_oracles(torch, *, source_dir=SOURCE_DIR, allow_download=True):
     te_namespace = {"torch": torch}
     exec(compile(ast.Module(body=[te_function], type_ignores=[]),
                  provenance["transformer_engine"]["url"], "exec"), te_namespace)
-    # Select original table, cached lookup, and dequantize method verbatim via AST.
     source_class = next(n for n in sources["modelopt"].body
                         if isinstance(n, ast.ClassDef) and n.name == "NVFP4QTensor")
     source_class.body = [n for n in source_class.body
