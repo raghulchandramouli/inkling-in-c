@@ -80,7 +80,11 @@ tests/fixtures/checkpoint/         pinned config/index/all shard headers
 tools/fetch_checkpoint_metadata.py metadata-only checkpoint fetcher
 tools/make_tiny_fixture.py         tiny SafeTensors generator
 tools/fetch_nvfp4_fixture.py       bounded range extraction and pinned CPU reference execution
-tools/emit_primitive_fixtures.py   pinned primitive oracle generator
+tools/inkling_ref.py              checksum-verified pinned CPU reference loader
+tools/emit_fixtures.py             recorded-byte B2/B3 regeneration and identity manifest
+tools/check_primitive_mutations.py isolated implementation-mutation acceptance
+tests/test_primitive_fixture.py   offline primitive provenance, schema and corruption audit
+tests/fixtures/oracle-manifest.json local generator and numerical fixture identities
 makefile                           C99 build and current tests
 ```
 
@@ -441,8 +445,11 @@ normalization is per head. Because q and k are normalized, attention scaling is
 Phase B3 implements these scalar operations in `src/core/inkling_math.c`. See
 `docs/PRIMITIVES.md` for capacities, aliasing, error behavior, deterministic ties,
 and per-operation tolerances against 43 independently generated cases. Matvec
-accumulates in float32; norm and softmax use wider reductions. Full Gate 1
-consolidation/sign-off remains Phase B4.
+accumulates in float32; norm and softmax use wider reductions. B4 now consolidates
+regeneration,
+source verification, local code identity, offline primitive audits and mutation
+acceptance. Final B4/Gate 1 sign-off remains pending integrated acceptance, including
+the fresh-checkout offline suite and compiler/sanitizer evidence.
 
 ### Short convolution
 

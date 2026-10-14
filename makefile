@@ -18,7 +18,7 @@ INDEX := $(CHECKPOINT_FIXTURES)/model.safetensors.index.json
 SAFETENSORS_FIXTURE := tests/fixtures/tiny.safetensors
 REAL_SAFETENSORS_HEADER := $(CHECKPOINT_FIXTURES)/headers/model-00005-of-00009.safetensors
 
-.PHONY: all test test-sanitize clean
+.PHONY: all test test-sanitize oracle-fixtures test-mutations clean
 all: $(BIN)
 
 $(BIN): src/cli/inkling_run.c $(IO_SOURCES) $(CORE_SOURCES)
@@ -53,8 +53,18 @@ test: $(BIN) $(TESTS) $(SAFETENSORS_FIXTURE) $(REAL_SAFETENSORS_HEADER)
 	$(BIN_DIR)/test_bf16
 	$(BIN_DIR)/test_nvfp4 tests/fixtures/nvfp4.json
 	python3 -B tests/test_nvfp4_fixture.py
+	python3 -B tests/test_primitive_fixture.py
 	$(BIN_DIR)/test_math tests/fixtures/primitives.json
 	python3 tests/test_verify.py $(BIN) $(CHECKPOINT_FIXTURES)
+
+ORACLE_PYTHON ?= python3
+ORACLE_FLAGS ?=
+
+oracle-fixtures:
+	$(ORACLE_PYTHON) -B tools/emit_fixtures.py $(ORACLE_FLAGS)
+
+test-mutations:
+	python3 -B tools/check_primitive_mutations.py --cc "$(CC)"
 
 test-sanitize:
 	UBSAN_OPTIONS=halt_on_error=1 $(MAKE) test BIN_DIR=bin/sanitize \

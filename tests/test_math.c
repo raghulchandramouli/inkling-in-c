@@ -205,10 +205,16 @@ static void vector_cases(Json *root)
         CHECK(inkling_softmax(x, n, out, n));
         close_values(root, "softmax", out, expected, n);
         double sum = 0;
-        for (size_t i = 0; i < n; i++) { CHECK(out[i] >= 0 && out[i] <= 1); sum += out[i]; }
+        for (size_t i = 0; i < n; i++) {
+            if (x[i] == -INFINITY) CHECK(out[i] == 0.0f);
+            CHECK(out[i] >= 0 && out[i] <= 1);
+            sum += out[i];
+        }
         CHECK(fabs(sum - 1) < 2e-7);
         memcpy(inplace, x, n * sizeof(float));
         CHECK(inkling_softmax(inplace, n, inplace, n));
+        for (size_t i = 0; i < n; i++)
+            if (x[i] == -INFINITY) CHECK(inplace[i] == 0.0f);
         CHECK(memcmp(inplace, out, n * sizeof(float)) == 0);
     }
     cases = field(root, "topk");
