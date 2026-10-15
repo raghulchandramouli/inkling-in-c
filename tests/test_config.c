@@ -101,6 +101,13 @@ static void test_real_config(const char *path)
     expect_u32(config.model_max_length, 1048576, "model_max_length");
     expect_u32(config.vocab_size, 201024, "vocab_size");
     expect_u32(config.eos_token_id, 200006, "eos_token_id");
+    expect(config.execution_fields_valid, "pinned execution fields validated");
+    expect_u32(config.swa_head_dim, 128, "swa_head_dim");
+    expect_u32(config.unpadded_vocab_size, 200058, "unpadded_vocab_size");
+    expect_u32(config.dense_mlp_idx, 2, "dense_mlp_idx");
+    expect_u32(config.log_scaling_n_floor, 128000, "log_scaling_n_floor");
+    expect_float(config.log_scaling_alpha, 0.1f, "log_scaling_alpha");
+    expect_float(config.logits_mup_width_multiplier, 16.0f, "logits_mup_width_multiplier");
     expect_u32(config.hidden_size, 4096, "hidden_size");
     expect_u32(config.num_hidden_layers, 42, "num_hidden_layers");
     expect_u32(config.num_attention_heads, 32, "num_attention_heads");
@@ -278,6 +285,7 @@ static void test_structured_loading(void)
         load_temp_config(VALID_CONFIG, &config),
         "minimal structured config loads"
     );
+    expect(!config.execution_fields_valid, "metadata config does not imply executable config");
     expect_u32(config.hidden_size, 4096, "structured hidden_size");
     expect(config.num_local_layers == 10, "structured local-layer count");
     inkling_config_free(&config);
@@ -299,6 +307,48 @@ static void test_structured_loading(void)
     expect(config.num_local_layers == 10 && config.local_layer_ids[0] == 0,
            "MTP local layers do not shadow text local layers");
     inkling_config_free(&config);
+}
+
+static void test_execution_fields(void)
+{
+    static const char *invalid[] = {
+        "\"q_bias\":true", "\"o_bias\":true", "\"use_embed_norm\":false",
+        "\"use_sconv\":false", "\"shared_expert_sink\":false", "\"use_gate_bias\":false",
+        "\"norm_after_topk\":false", "\"use_global_scale\":false",
+        "\"gate_activation\":\"softmax\"", "\"final_logit_softcapping\":30",
+        "\"swa_head_dim\":0", "\"swa_num_attention_heads\":3",
+        "\"swa_num_key_value_heads\":0", "\"dense_mlp_idx\":13",
+        "\"unpadded_vocab_size\":1001", "\"log_scaling_n_floor\":0",
+        "\"log_scaling_alpha\":-0.1", "\"logits_mup_width_multiplier\":0"
+    };
+    const char *fields[] = {
+        "\"q_bias\":false", "\"o_bias\":false", "\"use_embed_norm\":true",
+        "\"use_sconv\":true", "\"shared_expert_sink\":true", "\"use_gate_bias\":true",
+        "\"norm_after_topk\":true", "\"use_global_scale\":true",
+        "\"gate_activation\":\"sigmoid\"", "\"final_logit_softcapping\":null",
+        "\"swa_head_dim\":8", "\"swa_num_attention_heads\":4",
+        "\"swa_num_key_value_heads\":2", "\"dense_mlp_idx\":2",
+        "\"unpadded_vocab_size\":990", "\"log_scaling_n_floor\":128000",
+        "\"log_scaling_alpha\":0.1", "\"logits_mup_width_multiplier\":16"
+    };
+    size_t count = sizeof(fields) / sizeof(fields[0]);
+    for (size_t mutation = 0; mutation <= count + 1; mutation++) {
+        char json[4096];
+        size_t used = (size_t)snprintf(json, sizeof(json), "{\"eos_token_id\":900,\"text_config\":{%s", VALID_TEXT_CONFIG);
+        for (size_t i = 0; i < count; i++) {
+            if (mutation == count + 1 && i == 0) continue;
+            used += (size_t)snprintf(json + used, sizeof(json) - used, ",%s", mutation == i ? invalid[i] : fields[i]);
+        }
+        snprintf(json + used, sizeof(json) - used, "}}");
+        InklingConfig config = {0};
+        int loaded = load_temp_config(json, &config);
+        expect(loaded, "metadata loader preserves execution validation distinction");
+        expect(loaded && config.execution_fields_valid == (mutation == count),
+               "execution fields require supported flags and valid dimensions");
+        if (mutation == count) expect(config.swa_head_dim == 8 && config.swa_num_attention_heads == 4,
+                                      "local geometry is independent of global head geometry");
+        inkling_config_free(&config);
+    }
 }
 
 static void test_local_layer_lists(void)
@@ -462,6 +512,7 @@ int main(int argc, char **argv)
     test_real_config(argv[1]);
     test_validity();
     test_structured_loading();
+    test_execution_fields();
     test_local_layer_lists();
     test_load_failures();
 
