@@ -1,0 +1,19 @@
+{
+  "files": {
+    "config.json": "1530a6a9f8c55d47f1f5c6c77c3d63ad0e89d4148d62690a82e09885261f2bc5",
+    "hf_quant_config.json": "1ff2e32296460a90ccc0bdd91f70e13280ab923b920cf4566c0e93e07beb69cc",
+    "model-00001-of-00002.safetensors": "ca949a7be28bcb0883f6cf7c9edf16d3165748a120cfe263f7ca22ed10a6a4ed",
+    "model-00002-of-00002.safetensors": "a00c2467b63118060709346503278d8abb28c53508ada4ddee1a96a6ec16b768",
+    "model.safetensors.index.json": "0148f365058659092f5acb9138a3eeac580573335b89fd761c383d60dcfe1e75",
+    "oracle.json": "f12ccfdd132c1f334ce99012957e7d86bca7e5001509a7a01b252ac9d45ba433"
+  },
+  "generators": {
+    "tools/emit_model_fixtures.py": "4b03e06461632782af06f241529e8c456b266fe3ae0100f9640d1b840ba3f671",
+    "tools/fetch_checkpoint_metadata.py": "e5ff323b707b31db777faaf9c5e779f5654e115e15ef6f11f9019316f4bbc3e9",
+    "tools/fetch_model_layers.py": "46fcf08a4b3ffae708fd8b9b19ab078af8e15ee6cf587ed8044102f1b91d0647",
+    "tools/fetch_nvfp4_fixture.py": "7c238f44c7c8e080ebcdcb1fd087233e296c22ab58bd5ea22633c537e7ec01db",
+    "tools/inkling_model_ref.py": "e280884f42ff0e91e21b94ee4022b34eb9d7835e9667c38c599c451e8562d184",
+    "tools/inkling_ref.py": "b731a480394959020677c211ff88daa399a09714ada8d1b2801088d817f7f5ca"
+  },
+  "schema": 1
+}
