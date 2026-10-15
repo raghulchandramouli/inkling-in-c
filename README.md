@@ -27,6 +27,13 @@ CPU reference cases, check buffer/overflow failures, and verify convolution stat
 across prefill and incremental calls. See [primitive contracts, tolerances, and
 fixture regeneration](docs/PRIMITIVES.md).
 
+Explicit `make oracle-fixtures` regeneration uses recorded checkpoint bytes and
+checksum-verified upstream CPU sources. It requires the documented Python/PyTorch
+environment; ordinary tests remain offline with standard-library Python only.
+`make test-mutations` checks that relevant numerical regressions reject altered
+implementations in temporary builds. See the same primitive guide for cache-only
+regeneration, generator identity checks and compiler selection.
+
 `InklingIndex` is the tensor catalogue. Load the index with `inkling_index_load`,
 bind each real shard with `inkling_index_load_shard`, then resolve tensors with
 `inkling_index_find_tensor`. Entries have UNKNOWN dtype until bound. Free the

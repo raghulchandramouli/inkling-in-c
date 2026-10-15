@@ -1,66 +1,40 @@
 #!/usr/bin/env python3
-"""Generate B3 scalar fixtures from pinned upstream CPU/PyTorch operations.
-
-Requires Python 3.11, torch==2.8.0 and network access to pinned source files.
-Normal tests read the committed JSON without these dependencies.
-"""
+"""Regenerate B2/B3 oracles from recorded bytes and verified pinned CPU sources."""
 from __future__ import annotations
 
 import argparse
-import ast
 import json
+import math
 import platform
 import random
 import struct
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
-from fetch_checkpoint_metadata import request, sha256, write_atomic
-from fetch_nvfp4_fixture import bits, reference_oracles
+from fetch_checkpoint_metadata import sha256, write_atomic
+import fetch_nvfp4_fixture
+from inkling_ref import SOURCE_DIR, bits, reference_oracles, architecture
 
-REVISION = "c587bc884db2c2e31fc2b8102314656b17aa07b1"
-URL = (f"https://raw.githubusercontent.com/huggingface/transformers/{REVISION}/"
-       "src/transformers/models/inkling/modeling_inkling.py")
 SEED = 932184
-OUTPUT = Path("tests/fixtures/primitives.json")
 
 
-def architecture(torch):
-    raw = request(URL, max_bytes=2 * 1024 * 1024)
-    selected = {"InklingRMSNorm", "InklingShortConvolution", "causal_conv1d_update",
-                "causal_conv1d_fn", "apply_mask_to_padding_states"}
-    nodes = [n for n in ast.parse(raw).body
-             if isinstance(n, (ast.ClassDef, ast.FunctionDef)) and n.name in selected]
-    if {n.name for n in nodes} != selected:
-        raise ValueError("pinned architecture functions missing")
-    # Bypass only GPU/hub decorators; execute original classes/function bodies.
-    for node in nodes:
-        for child in ast.walk(node):
-            if isinstance(child, (ast.ClassDef, ast.FunctionDef)):
-                child.decorator_list = []
-    namespace = {"torch": torch, "nn": torch.nn, "F": torch.nn.functional}
-    exec(compile(ast.Module(body=nodes, type_ignores=[]), URL, "exec"), namespace)
-    return namespace, dict(url=URL, revision=REVISION, sha256=sha256(raw))
-
-
-def generate(output):
+def generate(output, *, b2_fixture=Path("tests/fixtures/nvfp4.json"),
+             source_dir=SOURCE_DIR, allow_download=True):
     import torch
     if torch.__version__.split("+")[0] != "2.8.0":
         raise ValueError("regeneration requires torch==2.8.0")
     torch.set_num_threads(1)
     torch.use_deterministic_algorithms(True)
     rng = random.Random(SEED)
-    upstream, provenance = architecture(torch)
-    _, modelopt_class, nv_references = reference_oracles(torch)
+    upstream, provenance = architecture(torch, source_dir=source_dir, allow_download=allow_download)
+    _, modelopt_class, nv_references = reference_oracles(torch, source_dir=source_dir, allow_download=allow_download)
 
     def tensor(values):
         return torch.tensor(values, dtype=torch.float32)
 
     def random_tensor(*shape):
-        count = 1
-        for dim in shape:
-            count *= dim
-        return tensor([rng.uniform(-2, 2) for _ in range(count)]).reshape(shape)
+        return tensor([rng.uniform(-2, 2) for _ in range(math.prod(shape))]).reshape(shape)
 
     def record(name, **values):
         return dict(name=name, **{key: bits(value.detach(), torch) if isinstance(value, torch.Tensor)
@@ -94,13 +68,14 @@ def generate(output):
                                     x=v, expected=torch.mv(w.float(), v)))
 
     def nv_case(name, packed, scales, globals_, rows, columns, x):
+        packed_tensor = torch.tensor(packed, dtype=torch.uint8).reshape(-1, rows, columns // 2)
+        scale_tensor = torch.tensor(scales, dtype=torch.uint8).view(torch.float8_e4m3fn).reshape(-1, rows, columns // 16)
         expected = []
         for e, global_ in enumerate(globals_):
             oracle = modelopt_class()
-            oracle._quantized_data = torch.tensor(packed, dtype=torch.uint8).reshape(-1, rows, columns // 2)[e]
+            oracle._quantized_data = packed_tensor[e]
             oracle.metadata = {"shape": (rows, columns), "dtype": torch.float32}
-            scale = torch.tensor(scales, dtype=torch.uint8).view(torch.float8_e4m3fn).reshape(-1, rows, columns // 16)[e]
-            decoded = oracle.dequantize(dtype=torch.float32, scale=scale,
+            decoded = oracle.dequantize(dtype=torch.float32, scale=scale_tensor[e],
                                        double_scale=tensor(global_), block_sizes={-1: 16})
             expected.append(torch.mv(decoded, x))
         result["nvfp4"].append(record(name, experts=len(globals_), rows=rows, columns=columns,
@@ -115,7 +90,7 @@ def generate(output):
     nv_case("zero_scale", list(range(8)), [0], [1], 1, 16, random_tensor(16))
     nv_case("scale_extremes", [0x21, 0xcb] * 8, [1, 126], [0.25], 1, 32, random_tensor(32))
     real_path = Path("tests/fixtures/nvfp4.json")
-    real_raw = real_path.read_bytes()
+    real_raw = b2_fixture.read_bytes()
     real = json.loads(real_raw)
     result["b2_fixture"] = dict(path=str(real_path), sha256=sha256(real_raw))
     for p in real["projections"]:
@@ -185,7 +160,40 @@ def generate(output):
           ("bf16", "nvfp4", "norm", "activation", "softmax", "topk", "conv")))
 
 
-if __name__ == "__main__":
+GENERATOR_FILES = (
+    "tools/inkling_ref.py",
+    "tools/emit_fixtures.py",
+    "tools/fetch_nvfp4_fixture.py",
+    "tools/fetch_checkpoint_metadata.py",
+)
+FIXTURE_FILES = ("nvfp4.json", "primitives.json")
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=OUTPUT)
-    generate(parser.parse_args().output)
+    parser.add_argument("--output-dir", type=Path, default=Path("tests/fixtures"))
+    parser.add_argument("--source-dir", type=Path, default=SOURCE_DIR)
+    parser.add_argument("--offline", action="store_true",
+                        help="require verified cached reference sources; never access network")
+    args = parser.parse_args(argv)
+    with tempfile.TemporaryDirectory(prefix="inkling-oracles-") as temporary:
+        stage = Path(temporary)
+        fetch_nvfp4_fixture.generate(stage / "nvfp4.json", recorded=fetch_nvfp4_fixture.OUTPUT,
+                                    source_dir=args.source_dir, allow_download=not args.offline)
+        generate(stage / "primitives.json", b2_fixture=stage / "nvfp4.json",
+                 source_dir=args.source_dir, allow_download=not args.offline)
+        manifest = dict(schema_version=1,
+                        generators={name: sha256(Path(name).read_bytes()) for name in GENERATOR_FILES},
+                        fixtures={name: sha256((stage / name).read_bytes()) for name in FIXTURE_FILES})
+        for name in FIXTURE_FILES:
+            write_atomic(args.output_dir / name, (stage / name).read_bytes())
+        write_atomic(args.output_dir / "oracle-manifest.json",
+                     (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode())
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, RuntimeError, KeyError) as error:
+        raise SystemExit(f"oracle regeneration failed: {error}") from None

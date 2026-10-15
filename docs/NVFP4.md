@@ -114,21 +114,32 @@ Padded layouts are explicitly rejected.
 
 ## Regeneration and offline checks
 
-Only regeneration needs PyTorch and network access. Use a Python 3.11 environment:
+Ordinary `make test` and `make test-sanitize` use committed bytes and Python's
+standard library. Consolidated regeneration uses recorded B2 ranges and verified
+pinned CPU functions, with no checkpoint download:
 
 ```sh
-python3.11 -m venv .context/nvfp4-venv
-.context/nvfp4-venv/bin/pip install 'torch==2.8.0'
-.context/nvfp4-venv/bin/python -B tools/fetch_nvfp4_fixture.py
-.context/nvfp4-venv/bin/python -B tests/test_nvfp4_fixture.py --with-oracle
-make test
-make test-sanitize
+make oracle-fixtures ORACLE_PYTHON=.context/nvfp4-venv/bin/python
+make oracle-fixtures ORACLE_PYTHON=.context/nvfp4-venv/bin/python \
+  ORACLE_FLAGS="--offline --output-dir .context/oracle-review"
 ```
 
-The generator accepts `--output PATH` for comparison without replacing the fixture.
-The optional `--with-oracle` check reproduces the fixture from the recorded raw
-bytes and pinned source functions, then verifies that an oracle disagreement
-cannot overwrite an existing fixture. It fetches reference source files only.
-Ordinary tests require neither weights nor an ML framework: C consumes the
-committed oracle, and a standard-library Python check validates metadata, ranges,
-checksums, and sample coverage offline.
+See [primitive regeneration](PRIMITIVES.md#reproduce-and-run) for the recorded
+Python/PyTorch environment, source cache policy and identity manifest. B2 sample
+bytes, extraction offsets, checksums, source revisions and expected output bits
+are preserved. The shared reference loader verifies immutable raw-source hashes
+before executing its selected original CPU functions.
+
+Refreshing checkpoint samples is a separate, explicit bounded network operation:
+
+```sh
+.context/nvfp4-venv/bin/python -B tools/fetch_nvfp4_fixture.py --output .context/nvfp4-fetched.json
+.context/nvfp4-venv/bin/python -B tests/test_nvfp4_fixture.py --with-oracle
+```
+
+The optional `--with-oracle` check reproduces the fixture from recorded raw bytes
+and verifies that decoder disagreement cannot overwrite an existing output. It
+uses verified cached sources where present and may fetch pinned sources if absent.
+It does not fetch checkpoint payloads. The dedicated fetch CLI retains its bounded
+range guards and `--output PATH` interface. If a reviewed refresh replaces B2,
+rerun consolidated regeneration to update primitive linkage and the manifest.

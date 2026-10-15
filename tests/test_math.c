@@ -180,23 +180,21 @@ static void vector_cases(Json *root)
         CHECK(inkling_rmsnorm(inplace, n, weights, n, epsilon, inplace, n));
         CHECK(memcmp(inplace, out, n * sizeof(float)) == 0);
     }
+    const char *activation_names[] = {"sigmoid", "silu"};
+    int (*activations[])(const float *, size_t, float *, size_t) = {inkling_sigmoid, inkling_silu};
     cases = field(root, "activation");
     CHECK(inkling_json_array_size(cases) == 3);
     for (size_t c = 0; c < inkling_json_array_size(cases); c++) {
         Json *item = inkling_json_array_at(cases, c);
         size_t n = floats(item, "x", x);
-        CHECK(floats(item, "sigmoid", expected) == n);
-        CHECK(inkling_sigmoid(x, n, out, n));
-        close_values(root, "activation", out, expected, n);
-        memcpy(inplace, x, n * sizeof(float));
-        CHECK(inkling_sigmoid(inplace, n, inplace, n));
-        CHECK(memcmp(inplace, out, n * sizeof(float)) == 0);
-        CHECK(floats(item, "silu", expected) == n);
-        CHECK(inkling_silu(x, n, out, n));
-        close_values(root, "activation", out, expected, n);
-        memcpy(inplace, x, n * sizeof(float));
-        CHECK(inkling_silu(inplace, n, inplace, n));
-        CHECK(memcmp(inplace, out, n * sizeof(float)) == 0);
+        for (size_t a = 0; a < 2; a++) {
+            CHECK(floats(item, activation_names[a], expected) == n);
+            CHECK(activations[a](x, n, out, n));
+            close_values(root, "activation", out, expected, n);
+            memcpy(inplace, x, n * sizeof(float));
+            CHECK(activations[a](inplace, n, inplace, n));
+            CHECK(memcmp(inplace, out, n * sizeof(float)) == 0);
+        }
     }
     cases = field(root, "softmax");
     CHECK(inkling_json_array_size(cases) == 6);
@@ -207,10 +205,16 @@ static void vector_cases(Json *root)
         CHECK(inkling_softmax(x, n, out, n));
         close_values(root, "softmax", out, expected, n);
         double sum = 0;
-        for (size_t i = 0; i < n; i++) { CHECK(out[i] >= 0 && out[i] <= 1); sum += out[i]; }
+        for (size_t i = 0; i < n; i++) {
+            if (x[i] == -INFINITY) CHECK(out[i] == 0.0f);
+            CHECK(out[i] >= 0 && out[i] <= 1);
+            sum += out[i];
+        }
         CHECK(fabs(sum - 1) < 2e-7);
         memcpy(inplace, x, n * sizeof(float));
         CHECK(inkling_softmax(inplace, n, inplace, n));
+        for (size_t i = 0; i < n; i++)
+            if (x[i] == -INFINITY) CHECK(inplace[i] == 0.0f);
         CHECK(memcmp(inplace, out, n * sizeof(float)) == 0);
     }
     cases = field(root, "topk");

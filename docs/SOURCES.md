@@ -55,6 +55,19 @@ tool versions are recorded in `tests/fixtures/nvfp4.json`. See
 [`NVFP4.md`](NVFP4.md) for the established layout, reference zero-sign difference,
 and bounded regeneration procedure. The source revisions below are unchanged.
 
+`tools/inkling_ref.py` binds each reference to its immutable revision and expected
+raw SHA-256 before executing selected CPU functions. The hashes match the original
+B2/B3 fixture provenance. Cached source bytes are verified on every regeneration;
+only explicit regeneration may fetch missing sources. `make oracle-fixtures`
+regenerates from recorded checkpoint bytes, and `--offline` requires the verified
+source cache. See [PRIMITIVES.md](PRIMITIVES.md#reproduce-and-run).
+
+`tests/fixtures/oracle-manifest.json` records SHA-256 identities for both numerical
+fixtures and their local generator source dependencies. Ordinary tests audit this
+manifest and primitive provenance using only the Python standard library. It
+records consistency of the checked-in artifacts; it does not substitute for
+independent reference execution or authenticate new checkpoint bytes.
+
 ## Architecture reference
 
 ### Hugging Face Transformers

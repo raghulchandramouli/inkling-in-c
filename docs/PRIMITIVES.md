@@ -122,20 +122,92 @@ make test
 make test-sanitize
 ```
 
-Regeneration needs Python 3.11, PyTorch 2.8.0, and network access only for pinned
-source files (no checkpoint download). The B2 environment can be reused:
+Explicit regeneration needs Python 3.11 and PyTorch 2.8.0. The committed
+recorded environment is Python 3.11.16, PyTorch 2.8.0, and torch revision
+`a1cb3cc05d46d198467bebbb6e8fba50a325d4e7`. Other package builds or platforms may
+produce different provenance or numerical bits and require review. From the
+repository root:
 
 ```sh
 python3.11 -m venv .context/nvfp4-venv
 .context/nvfp4-venv/bin/pip install 'torch==2.8.0'
-.context/nvfp4-venv/bin/python -B tools/emit_primitive_fixtures.py
-# Compare without overwriting the committed fixture:
-.context/nvfp4-venv/bin/python -B tools/emit_primitive_fixtures.py --output .context/primitives.json
-cmp tests/fixtures/primitives.json .context/primitives.json
+make oracle-fixtures ORACLE_PYTHON=.context/nvfp4-venv/bin/python
+# Generate for review without replacing committed fixtures:
+make oracle-fixtures ORACLE_PYTHON=.context/nvfp4-venv/bin/python \
+  ORACLE_FLAGS="--output-dir .context/oracle-review"
+# After caching sources, forbid all network requests during regeneration:
+make oracle-fixtures ORACLE_PYTHON=.context/nvfp4-venv/bin/python \
+  ORACLE_FLAGS="--offline --output-dir .context/oracle-repeat"
+cmp tests/fixtures/nvfp4.json .context/oracle-repeat/nvfp4.json
+cmp tests/fixtures/primitives.json .context/oracle-repeat/primitives.json
+cmp tests/fixtures/oracle-manifest.json .context/oracle-repeat/oracle-manifest.json
 ```
 
-The generator sets a fixed seed, single-threaded deterministic CPU execution,
-and writes atomically only after its independent convolution checks pass. Output
-is deterministic in the recorded environment; other package builds/platforms may
-have different provenance or floating-point bits and require review.
-Phase B4 still owns consolidated regeneration tooling and final Gate 1 sign-off.
+`tools/inkling_ref.py` owns immutable source pins, SHA-256 checks and extraction
+of original CPU reference functions. `tools/emit_fixtures.py` owns the primitive
+recipe and consolidated CLI. B2 regeneration reads the committed raw sample
+bytes and verifies their metadata, ranges and checksums; it never downloads
+checkpoint weights. Both B2 independent decoders run again and all B3 outputs
+are recomputed. The CLI stages both fixtures before publishing them and writes
+the identity manifest last. A crash between file replacements is detectable by
+the manifest audit; rerunning regeneration repairs the set.
+
+The first explicit generation can download pinned reference sources into
+`.context/oracle-sources`. Every source is checked against its fixed hash before
+execution. `--source-dir PATH` chooses another cache; `--offline` rejects missing
+or corrupt cached sources without network access. A corrupt cache is rejected
+even when downloads are allowed. Remove the identified corrupt entry before
+retrying a download. Ordinary `make test` does not load those sources or torch.
+
+`tests/fixtures/oracle-manifest.json` binds fixture hashes to local generator
+source hashes, without timestamps or a self-hash. The ordinary stdlib audit
+checks those identities, all primitive fields/dimensions, source pins, seed,
+package provenance, exact tolerance values and B2 raw-slice/global-scale linkage.
+Changing generator code requires explicit regeneration and review of the manifest.
+The hash audit proves identity consistency; the independent CPU functions provide
+the numerical expectations.
+
+Negative-infinity masks have an exact zero assertion in both softmax call modes,
+in addition to the tolerance used for other probabilities. Representation bits,
+indices and convolution state retain their exact comparisons.
+
+Run repeatable implementation-mutation acceptance with either command:
+
+```sh
+make test-mutations CC=clang
+python3 -B tools/check_primitive_mutations.py --cc gcc --report .context/mutations.json
+```
+
+The runner first passes pristine B2/B3 test binaries, then builds isolated source
+copies that change packing, scale direction/block/expert indexing, BF16 stride,
+tie ordering, convolution kernel/state/residual, and masked probabilities. Each
+must exit with the relevant numerical assertion. Compilation errors, crashes,
+stale mutation text and survivors fail the runner. Temporary builds do not alter
+the checkout. Compiler names can be aliases, so acceptance records the compiler's
+reported version, not merely its executable name.
+
+## Gate 1 acceptance
+
+Phase B and Gate 1 passed on 2026-10-14. A fresh tracked-file checkout passed
+`make test CC=clang` and `make test-sanitize CC=clang` with network access denied.
+The ordinary-test Python was 3.9.6 with no PyTorch installation. Apple Clang
+21.0.0 was available. The `gcc` executable was a Clang alias; genuine GCC was
+not installed.
+
+Two cache-only `make oracle-fixtures` runs matched each other and the committed
+numerical fixtures and manifest byte for byte. The mutation runner passed both
+pristine binaries and rejected all ten deliberate changes at the expected
+assertions. Its report identifies the six copied source, test, and fixture inputs
+by SHA-256. The B2 raw checkpoint bytes and B3's 43 cases remain unchanged.
+
+The fresh checkout used `git archive HEAD` in an empty directory and ran the
+normal and sanitizer commands under macOS `sandbox-exec` with this policy:
+
+```text
+(version 1)(allow default)(deny network*)
+```
+
+The policy also denied an explicit socket probe with `PermissionError`.
+Platforms without that command can run the portable suites in a container or
+environment that denies network access. Later gates verify attention, model
+logits, generation, and performance.

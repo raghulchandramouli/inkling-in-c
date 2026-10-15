@@ -6,7 +6,6 @@ Ordinary C tests consume the committed JSON offline and do not import PyTorch.
 from __future__ import annotations
 
 import argparse
-import ast
 import json
 import platform
 import struct
@@ -17,19 +16,10 @@ from fetch_checkpoint_metadata import (
     BASE_URL, MODEL, REVISION, request, sha256, url_for, validate_index_headers,
     write_atomic,
 )
+from inkling_ref import REFERENCES, SOURCE_PINS, SOURCE_DIR, bits, reference_oracles
 
 METADATA = Path("tests/fixtures/checkpoint")
 OUTPUT = Path("tests/fixtures/nvfp4.json")
-REFERENCES = {
-    "modelopt": ("NVIDIA/Model-Optimizer", "b311c054de4052df9c7f3de9409b7598f44a0dba",
-                 "modelopt/torch/quantization/qtensor/nvfp4_tensor.py"),
-    "transformer_engine": ("NVIDIA/TransformerEngine", "699ed6ec9e9c600c3d0acd3a488c4ca6f339e5d9",
-                           "transformer_engine/pytorch/custom_recipes/reference_nvfp4.py"),
-    "loader": ("vllm-project/vllm", "e378275a8f20eac9e92212e4a1fee84ec5a31dc7",
-               "vllm/models/inkling/nvidia/moe.py"),
-    "mapper": ("vllm-project/vllm", "e378275a8f20eac9e92212e4a1fee84ec5a31dc7",
-               "vllm/models/inkling/nvidia/model.py"),
-}
 
 
 def catalogue():
@@ -68,50 +58,76 @@ def fetch_range(tensors, name, offset=0, length=None):
                 file_offset=file_offset, length=length, sha256=sha256(raw), hex=raw.hex())
 
 
-def reference_oracles(torch):
-    """Execute only the original pinned CPU functions, without GPU package imports."""
-    sources, provenance = {}, {}
-    for key, (repo, revision, path) in REFERENCES.items():
-        url = f"https://raw.githubusercontent.com/{repo}/{revision}/{path}"
-        raw = request(url, max_bytes=2 * 1024 * 1024)
-        sources[key] = ast.parse(raw, filename=url)
-        provenance[key] = dict(url=url, revision=revision, sha256=sha256(raw))
-    te_function = next(n for n in sources["transformer_engine"].body
-                       if isinstance(n, ast.FunctionDef) and n.name == "cast_from_fp4x2")
-    te_namespace = {"torch": torch}
-    exec(compile(ast.Module(body=[te_function], type_ignores=[]),
-                 provenance["transformer_engine"]["url"], "exec"), te_namespace)
-    # Select original table, cached lookup, and dequantize method verbatim via AST.
-    source_class = next(n for n in sources["modelopt"].body
-                        if isinstance(n, ast.ClassDef) and n.name == "NVFP4QTensor")
-    source_class.body = [n for n in source_class.body
-                         if (isinstance(n, ast.FunctionDef) and n.name in
-                             ("get_e2m1_values", "dequantize")) or
-                         (isinstance(n, ast.Assign) and any(
-                             isinstance(t, ast.Name) and t.id == "e2m1_values_on_device"
-                             for t in n.targets))]
-    table = next(n for n in sources["modelopt"].body if isinstance(n, ast.Assign)
-                 and any(isinstance(t, ast.Name) and t.id == "e2m1_values" for t in n.targets))
-    mo_namespace = {"torch": torch, "BaseQuantizedTensor": object}
-    exec(compile(ast.Module(body=[table, source_class], type_ignores=[]),
-                 provenance["modelopt"]["url"], "exec"), mo_namespace)
-    return te_namespace["cast_from_fp4x2"], mo_namespace["NVFP4QTensor"], provenance
+def recorded_ranges(path, tensors):
+    """Validate B2 extraction records and return a reader with no network path."""
+    fixture = json.loads(path.read_bytes())
+    if (fixture["schema_version"] != 1 or fixture["model"] != MODEL
+            or fixture["revision"] != REVISION
+            or fixture["references"] != {key: SOURCE_PINS[key] for key in REFERENCES}):
+        raise ValueError("recorded fixture identity mismatch")
+    names = [f"model.llm.layers.3.mlp.experts.{projection}"
+             for projection in ("w13_weight", "w2_weight")]
+    if [p["weight"] for p in fixture["projections"]] != names:
+        raise ValueError("recorded projection coverage mismatch")
+    expected_tensors = {name: metadata for name, metadata in tensors.items()
+                        if any(name == weight or name.startswith(weight + ".") for weight in names)}
+    if fixture["tensors"] != expected_tensors:
+        raise ValueError("recorded tensor metadata mismatch")
+    records = {}
+
+    def add(record, name, offset, length):
+        tensor = tensors[name]
+        start, end = tensor["data_offsets"]
+        raw = bytes.fromhex(record["hex"])
+        if (record["tensor"] != name or record["tensor_offset"] != offset
+                or record["length"] != length or len(raw) != length
+                or record["sha256"] != sha256(raw) or offset < 0
+                or offset + length > end - start
+                or record["data_offset"] != start + offset
+                or record["file_offset"] != 8 + tensor["header_size"] + start + offset
+                or (name, offset) in records):
+            raise ValueError(f"invalid recorded sample: {name} at {offset}")
+        records[name, offset] = record
+        return raw
+
+    for p in fixture["projections"]:
+        name = p["weight"]
+        shape = list(struct.unpack("<3q", add(p["original_shape"], name + ".original_shape", 0, 24)))
+        columns = 4096 if name == names[0] else 2048
+        if shape != [256, 4096, columns] or p["logical_shape"] != shape:
+            raise ValueError("recorded logical shape mismatch")
+        add(p["scale2"], name + ".scale2", 0, 1024)
+        add(p["input_amax"], name + ".input_amax", 0, 2)
+        positions = [(e, r, b) for e in (0, 7, 255)
+                     for r, b in ((0, 0), (1, 3), (4095, columns // 16 - 2))]
+        if [(s["expert"], s["row"], s["block"]) for s in p["samples"]] != positions:
+            raise ValueError("recorded sample coverage mismatch")
+        for sample in p["samples"]:
+            linear = (sample["expert"] * 4096 + sample["row"]) * columns + sample["block"] * 16
+            add(sample["packed"], name, linear // 2, 16)
+            add(sample["scales"], name + ".scale", linear // 16, 2)
+
+    def read_range(tensors, name, offset=0, length=None):
+        record = records[name, offset]
+        if length is not None and length != record["length"]:
+            raise ValueError(f"recorded sample length mismatch: {name}")
+        return dict(record)
+
+    return read_range
 
 
-def bits(values, torch):
-    return [n & 0xffffffff for n in values.contiguous().view(torch.int32).flatten().tolist()]
-
-
-def generate(output):
+def generate(output, *, recorded=None, source_dir=SOURCE_DIR, allow_download=True):
     import torch
     if torch.__version__.split("+")[0] != "2.8.0":
         raise ValueError("regeneration requires torch==2.8.0")
     tensors = catalogue()
-    te_decode, modelopt_class, references = reference_oracles(torch)
+    read_range = fetch_range if recorded is None else recorded_ranges(recorded, tensors)
+    te_decode, modelopt_class, references = reference_oracles(
+        torch, source_dir=source_dir, allow_download=allow_download)
     projections = []
     for projection in ("w13_weight", "w2_weight"):
         name = f"model.llm.layers.3.mlp.experts.{projection}"
-        auxiliaries = {suffix: fetch_range(tensors, name + "." + suffix)
+        auxiliaries = {suffix: read_range(tensors, name + "." + suffix)
                        for suffix in ("original_shape", "scale2", "input_amax")}
         shape = list(struct.unpack("<3q", bytes.fromhex(auxiliaries["original_shape"]["hex"])))
         experts, rows, columns = shape
@@ -130,8 +146,8 @@ def generate(output):
             expert, row, block = position
             linear = (expert * rows + row) * columns + block * 16
             return dict(expert=expert, row=row, block=block,
-                        packed=fetch_range(tensors, name, linear // 2, 16),
-                        scales=fetch_range(tensors, name + ".scale", linear // 16, 2))
+                        packed=read_range(tensors, name, linear // 2, 16),
+                        scales=read_range(tensors, name + ".scale", linear // 16, 2))
 
         with ThreadPoolExecutor(max_workers=4) as pool:
             samples = list(pool.map(sample, positions))

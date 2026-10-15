@@ -1,0 +1,13 @@
+{
+  "fixtures": {
+    "nvfp4.json": "8edb921bf2ad3e9a87489e66ceb9e329d2dfba0ffacf8fd574e72aa45ceb8489",
+    "primitives.json": "f18bc6d112416bb8a1d64e306f1080c93f725e9c4ffaf6267aa3b10dc004a446"
+  },
+  "generators": {
+    "tools/emit_fixtures.py": "bf51875ca93b46c8f8390220377bcc0728339e489156cbdad4bb4b5388bcab6d",
+    "tools/fetch_checkpoint_metadata.py": "e5ff323b707b31db777faaf9c5e779f5654e115e15ef6f11f9019316f4bbc3e9",
+    "tools/fetch_nvfp4_fixture.py": "7c238f44c7c8e080ebcdcb1fd087233e296c22ab58bd5ea22633c537e7ec01db",
+    "tools/inkling_ref.py": "b731a480394959020677c211ff88daa399a09714ada8d1b2801088d817f7f5ca"
+  },
+  "schema_version": 1
+}
