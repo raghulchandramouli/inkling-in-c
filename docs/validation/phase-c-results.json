@@ -1,0 +1,2332 @@
+{
+  "artifact_sha256": {
+    ".context/.audit/c16-c-review.md": "8d98a92a41058b4099cdbee5b2f1afa932e139f31e9b371e6eafb747e9cfaa6b",
+    ".context/.audit/c16-comments.md": "3efd5b1075e2df3dfb8346cc85948a06e4999c04650b0e0fd458437ca1a6179a",
+    ".context/.audit/c16-gate-review-final.md": "c00496f2c063d709d32bbbdf113a2d125104f42191b4e4c6c6701df00371f74e",
+    ".context/.audit/c16-oracle-review.md": "a63bdfcd6b2f16da80ee6d61ac52635272b8a6b4e5c1709633e73e3988d41262",
+    ".context/.audit/c16-python-comments.md": "b53d31ff651dd6f10273811d1011e1930aaedaac26e2305652d5ba8edcb9f510",
+    ".context/.audit/c16-trail-review.md": "d6254532ad2a90829d70ad78375426fead1b853ec0134fe928442110c6b1ec42",
+    ".context/c16-all-mutations.log": "13ac1fcea69f6860a80d376b50dd21346f4be2c66c9c27c9a15b9ecef0d4a757",
+    ".context/c16-docstring-cleanup.json": "1aea8f9e998d64f28a924a6b5af376f38c6dd5a5bb17f03bfaa75a138de4df4b",
+    ".context/c16-final-sanitize.log": "09a7700b7baead65cb6c3cbc58ddebcdc946c30fb2eabe7936e9ff825203d202",
+    ".context/c16-fresh-offline.log": "6ab9cd53dfe92cc50d311ad3b98dae90542641361558155fbc045af786d41790",
+    ".context/c16-miniature-final.log": "187a5db87f29e6391256bbf8c42d3b7fba31737bc543faa9ee2066518ae339f9",
+    ".context/c16-real-final.log": "86bdbb58900cbf17d64cf7c7b6a9bc0d821aa8cc0d0030edacaa34b29c7becd2",
+    ".context/c16-repro-final-report.json": "6390f5c0a9ef980a3d426896800b78c1e49fca4ee5ef216ddb202149f538fa11"
+  },
+  "baseline": "57626a2",
+  "checks": {
+    "cli": "PASS, actual CLI source with private miniature opener; strict product opener retained",
+    "decision_trail_review": "Requested gpt-6-luna; verified 74 source and 12 artifact hashes; noted retrospective timestamps, isolated-real scope, and PR delivery then pending; reduced model-family diversity",
+    "fixture_audit": "PASS, 75 rejection cases",
+    "fixture_reproduction": "PASS, seven files match two independent offline regenerations",
+    "fresh_export_normal_and_asan_ubsan": "PASS, network denied, no weights or torch",
+    "independent_c_review": "CLEAN",
+    "independent_oracle_review": "three P2 findings fixed; fresh final review CLEAN",
+    "model_mutations": "PASS, all seven rejected by intended numerical comparisons",
+    "post_review_cleanup": "14 docstrings removed, CLI descriptions preserved, executable AST equivalence checked; fixtures and real manifests regenerated offline",
+    "primitive_mutations": "PASS, all ten rejected by intended assertions",
+    "range_guards": "PASS, synthetic positive bind then rejected damage and successful retry"
+  },
+  "date": "2026-10-15",
+  "environment": {
+    "compiler": "Apple clang 21.0.0 (clang-2100.1.1.101)",
+    "oracle_python": "3.11.16",
+    "ordinary_python": "3.9.6 without torch",
+    "target": "arm64-apple-darwin25.6.0",
+    "torch": "2.8.0",
+    "torch_git": "a1cb3cc05d46d198467bebbb6e8fba50a325d4e7"
+  },
+  "fixture_reproduction_sha256": {
+    "config.json": "1530a6a9f8c55d47f1f5c6c77c3d63ad0e89d4148d62690a82e09885261f2bc5",
+    "hf_quant_config.json": "1ff2e32296460a90ccc0bdd91f70e13280ab923b920cf4566c0e93e07beb69cc",
+    "manifest.json": "03ba854b30b14bf46f3f1436fcf66729b713e62b0b0f8e50b701488d693e79d0",
+    "model-00001-of-00002.safetensors": "ca949a7be28bcb0883f6cf7c9edf16d3165748a120cfe263f7ca22ed10a6a4ed",
+    "model-00002-of-00002.safetensors": "a00c2467b63118060709346503278d8abb28c53508ada4ddee1a96a6ec16b768",
+    "model.safetensors.index.json": "0148f365058659092f5acb9138a3eeac580573335b89fd761c383d60dcfe1e75",
+    "oracle.json": "f12ccfdd132c1f334ce99012957e7d86bca7e5001509a7a01b252ac9d45ba433"
+  },
+  "implementation_commits": {
+    "oracle": "713bb57318b3df4e7206c965c0abb9bded185483",
+    "runtime": "c72a6b55586845e2d966bb2af8b5b9432d1e2529"
+  },
+  "issue": "https://github.com/raghulchandramouli/inkling-in-c/issues/16",
+  "limits": [
+    "Real runs use three isolated one-token original layers with zero convolution prehistory.",
+    "Real runs do not prove full-checkpoint logits, long real histories, unselected experts, or generation.",
+    "Near-floor numerical tolerances cannot resolve the first tau increment; exact formula was inspected and tau_far rejects either scaling omission.",
+    "No genuine GCC or Linux run was available.",
+    "Production opener checks metadata and lengths, not checkpoint payload hashes.",
+    "No incremental cache or total memory budget contract."
+  ],
+  "miniature": {
+    "cases": [
+      {
+        "name": "prefix_1",
+        "output": {
+          "count": 37,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 1.4921756365249284e-08,
+          "max_relative_error": 1.4307139497277652e-06,
+          "max_tolerance_fraction": 0.00014684282304607352
+        },
+        "traces": {}
+      },
+      {
+        "name": "prefix_3",
+        "output": {
+          "count": 111,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 2.232764148742128e-08,
+          "max_relative_error": 1.654782667810946e-05,
+          "max_tolerance_fraction": 0.0002203831762347031
+        },
+        "traces": {}
+      },
+      {
+        "name": "prefix_6",
+        "output": {
+          "count": 222,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 2.232764148742128e-08,
+          "max_relative_error": 2.541023604221267e-05,
+          "max_tolerance_fraction": 0.0002203831762347031
+        },
+        "traces": {}
+      },
+      {
+        "name": "layer_0",
+        "output": {
+          "count": 192,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 1.201394652650123e-07,
+          "max_relative_error": 4.099986292904124e-06,
+          "max_tolerance_fraction": 0.0007831516053397549
+        },
+        "traces": {
+          "attention_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 5.9104980465463086e-08,
+            "max_relative_error": 1.3052017523734291e-05,
+            "max_tolerance_fraction": 0.0005430558703156975
+          },
+          "attention_probs": {
+            "count": 144,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 5.981788636644225e-08,
+            "max_relative_error": 2.4413957833082367e-07,
+            "max_tolerance_fraction": 0.007814429835177272
+          },
+          "attn_conv": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 5.974607847347713e-08,
+            "max_relative_error": 9.24466636522139e-05,
+            "max_tolerance_fraction": 0.0005458806501595899
+          },
+          "attn_norm": {
+            "count": 192,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.4177337643038754e-07,
+            "max_relative_error": 1.5636462837814093e-07,
+            "max_tolerance_fraction": 0.004733214930218564
+          },
+          "k_conv": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.7911376948287483e-07,
+            "max_relative_error": 8.847172927497742e-06,
+            "max_tolerance_fraction": 0.0010600663870665727
+          },
+          "k_norm": {
+            "count": 96,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 3.5573730472471254e-07,
+            "max_relative_error": 8.61396334333989e-06,
+            "max_tolerance_fraction": 0.00805469522616016
+          },
+          "k_proj": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.7924182127426747e-07,
+            "max_relative_error": 6.103252899587166e-06,
+            "max_tolerance_fraction": 0.0010017798945578284
+          },
+          "mlp_conv": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 7.402398682909705e-08,
+            "max_relative_error": 3.113990661919396e-05,
+            "max_tolerance_fraction": 0.0006208601742849386
+          },
+          "mlp_norm": {
+            "count": 192,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.395858764714376e-07,
+            "max_relative_error": 3.940202837275727e-06,
+            "max_tolerance_fraction": 0.004968635763766789
+          },
+          "mlp_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 6.008871458740295e-08,
+            "max_relative_error": 3.1133371562331516e-05,
+            "max_tolerance_fraction": 0.0005228445688745928
+          },
+          "output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.201394652650123e-07,
+            "max_relative_error": 4.099986292904124e-06,
+            "max_tolerance_fraction": 0.0007831516053397549
+          },
+          "post_attention": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.2279602046305627e-07,
+            "max_relative_error": 3.844834832826594e-06,
+            "max_tolerance_fraction": 0.000733607799456364
+          },
+          "q_norm": {
+            "count": 192,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 5.961328735093474e-07,
+            "max_relative_error": 3.884285868695537e-05,
+            "max_tolerance_fraction": 0.01956737558296847
+          },
+          "q_proj": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 3.548809814901688e-07,
+            "max_relative_error": 3.861091612905999e-05,
+            "max_tolerance_fraction": 0.0016412192853445136
+          },
+          "r_proj": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.3889434808133103e-07,
+            "max_relative_error": 2.3264295089668934e-06,
+            "max_tolerance_fraction": 0.0012081072399199322
+          },
+          "relative_bias": {
+            "count": 144,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 3.0061466219089006e-08,
+            "max_relative_error": 7.53333897425124e-06,
+            "max_tolerance_fraction": 0.00026865206532438146
+          },
+          "v_conv": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.0827026364633738e-07,
+            "max_relative_error": 3.042978755108392e-06,
+            "max_tolerance_fraction": 0.0014326968587606895
+          },
+          "v_proj": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.7921325684566725e-07,
+            "max_relative_error": 2.976621427399782e-06,
+            "max_tolerance_fraction": 0.0012447897507518908
+          }
+        }
+      },
+      {
+        "name": "mlp_0",
+        "output": {
+          "count": 192,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 2.4249666975839634e-08,
+          "max_relative_error": 2.1879582316386878e-05,
+          "max_tolerance_fraction": 0.00023701753318027162
+        },
+        "traces": {
+          "mlp_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.4249666975839634e-08,
+            "max_relative_error": 2.1879582316386878e-05,
+            "max_tolerance_fraction": 0.00023701753318027162
+          }
+        }
+      },
+      {
+        "name": "layer_1",
+        "output": {
+          "count": 192,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 2.422116089917381e-07,
+          "max_relative_error": 2.6788415581332156e-05,
+          "max_tolerance_fraction": 0.0017327623722733993
+        },
+        "traces": {
+          "attention_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 6.146966342965993e-08,
+            "max_relative_error": 7.749151729979987e-05,
+            "max_tolerance_fraction": 0.0006107636210915017
+          },
+          "attention_probs": {
+            "count": 144,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 6.006513975087557e-08,
+            "max_relative_error": 2.411670510847712e-07,
+            "max_tolerance_fraction": 0.008596901761387818
+          },
+          "attn_conv": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 7.468458557147173e-08,
+            "max_relative_error": 0.0004986229020420312,
+            "max_tolerance_fraction": 0.0006418325295285049
+          },
+          "attn_norm": {
+            "count": 192,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.4324768066463776e-07,
+            "max_relative_error": 1.5866518476313418e-07,
+            "max_tolerance_fraction": 0.004792907825379647
+          },
+          "k_conv": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.7909234617530245e-07,
+            "max_relative_error": 8.117576073282276e-06,
+            "max_tolerance_fraction": 0.0012160667035417782
+          },
+          "k_norm": {
+            "count": 96,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 3.6127563474153135e-07,
+            "max_relative_error": 8.113772397800589e-06,
+            "max_tolerance_fraction": 0.011653843062080355
+          },
+          "k_proj": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.7900439452933625e-07,
+            "max_relative_error": 4.2001580698705325e-06,
+            "max_tolerance_fraction": 0.0012459346936895997
+          },
+          "mlp_conv": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.4870561215740707e-07,
+            "max_relative_error": 9.610445069934895e-05,
+            "max_tolerance_fraction": 0.0011495917442051042
+          },
+          "mlp_norm": {
+            "count": 192,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.422213745134627e-07,
+            "max_relative_error": 2.0830776255556723e-05,
+            "max_tolerance_fraction": 0.005525831084230493
+          },
+          "mlp_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.494132080281929e-07,
+            "max_relative_error": 3.6075002870876635e-05,
+            "max_tolerance_fraction": 0.0013038064369717685
+          },
+          "output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.422116089917381e-07,
+            "max_relative_error": 2.6788415581332156e-05,
+            "max_tolerance_fraction": 0.0017327623722733993
+          },
+          "post_attention": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.226995849368251e-07,
+            "max_relative_error": 2.0776426159187653e-05,
+            "max_tolerance_fraction": 0.0006219667330614474
+          },
+          "q_norm": {
+            "count": 192,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 4.7583923334926226e-07,
+            "max_relative_error": 1.2093370227087815e-05,
+            "max_tolerance_fraction": 0.012675050587591543
+          },
+          "q_proj": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.984828491037206e-07,
+            "max_relative_error": 1.2071563154238732e-05,
+            "max_tolerance_fraction": 0.0015478795058729547
+          },
+          "r_proj": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.9812817381458245e-07,
+            "max_relative_error": 6.9917513458335386e-06,
+            "max_tolerance_fraction": 0.0016622575080912786
+          },
+          "relative_bias": {
+            "count": 144,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.9836753082101986e-08,
+            "max_relative_error": 1.3323652785714992e-05,
+            "max_tolerance_fraction": 0.0002796737340660705
+          },
+          "routed_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.1891668699748337e-07,
+            "max_relative_error": 0.00037275263095846116,
+            "max_tolerance_fraction": 0.0008967719134431127
+          },
+          "router_logits": {
+            "count": 36,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.412799071649374e-07,
+            "max_relative_error": 3.3868150656000778e-06,
+            "max_tolerance_fraction": 0.0012018399525790724
+          },
+          "router_weights": {
+            "count": 12,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 7.122393799186e-07,
+            "max_relative_error": 2.51499834203751e-07,
+            "max_tolerance_fraction": 0.012146099121351565
+          },
+          "shared_gammas": {
+            "count": 12,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 4.778784181702633e-07,
+            "max_relative_error": 2.113208347466503e-07,
+            "max_tolerance_fraction": 0.010116628345957689
+          },
+          "shared_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.1961593626708122e-07,
+            "max_relative_error": 0.00016251164956496234,
+            "max_tolerance_fraction": 0.0008734473446766138
+          },
+          "v_conv": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.4148193356055003e-07,
+            "max_relative_error": 0.00015742320853649204,
+            "max_tolerance_fraction": 0.0013989332086430447
+          },
+          "v_proj": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.4081024174726906e-07,
+            "max_relative_error": 0.0010839940226917376,
+            "max_tolerance_fraction": 0.0011502767214527265
+          }
+        }
+      },
+      {
+        "name": "mlp_1",
+        "output": {
+          "count": 192,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 5.986735535090659e-08,
+          "max_relative_error": 3.330297867789703e-05,
+          "max_tolerance_fraction": 0.0005256055341163225
+        },
+        "traces": {
+          "mlp_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 5.986735535090659e-08,
+            "max_relative_error": 3.330297867789703e-05,
+            "max_tolerance_fraction": 0.0005256055341163225
+          },
+          "routed_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 5.963968810474007e-08,
+            "max_relative_error": 1.8545282760174927e-05,
+            "max_tolerance_fraction": 0.0005464379592004569
+          },
+          "router_logits": {
+            "count": 36,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 5.984707640571685e-08,
+            "max_relative_error": 1.0366361736992486e-06,
+            "max_tolerance_fraction": 0.0004750782356841303
+          },
+          "router_weights": {
+            "count": 12,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 7.127716066257506e-07,
+            "max_relative_error": 2.511659051315695e-07,
+            "max_tolerance_fraction": 0.012130830010859921
+          },
+          "shared_gammas": {
+            "count": 12,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.414617918944373e-07,
+            "max_relative_error": 1.059525770503132e-07,
+            "max_tolerance_fraction": 0.005072793854911432
+          },
+          "shared_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 4.471498413205488e-08,
+            "max_relative_error": 0.0002547371269895053,
+            "max_tolerance_fraction": 0.0004319958327270481
+          }
+        }
+      },
+      {
+        "name": "layer_2",
+        "output": {
+          "count": 192,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 4.7459655760917485e-07,
+          "max_relative_error": 1.090774813745703e-05,
+          "max_tolerance_fraction": 0.0023086494799893684
+        },
+        "traces": {
+          "attention_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 6.704008483765511e-08,
+            "max_relative_error": 3.6778206317424577e-05,
+            "max_tolerance_fraction": 0.0006323573559500764
+          },
+          "attention_probs": {
+            "count": 72,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 5.97004242153254e-08,
+            "max_relative_error": 1.774279520483589e-07,
+            "max_tolerance_fraction": 0.005645573289255392
+          },
+          "attn_conv": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 6.704676361324324e-08,
+            "max_relative_error": 0.0005799853407051364,
+            "max_tolerance_fraction": 0.0006159122422027256
+          },
+          "attn_norm": {
+            "count": 192,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 1.2385467518249982e-07,
+            "max_relative_error": 1.2609591516291443e-07,
+            "max_tolerance_fraction": 0.0029852177161876115
+          },
+          "k_conv": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.3765625001281876e-07,
+            "max_relative_error": 7.93675304016982e-06,
+            "max_tolerance_fraction": 0.0013429353442661561
+          },
+          "k_norm": {
+            "count": 96,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 4.7236145039875055e-07,
+            "max_relative_error": 7.885312029713868e-06,
+            "max_tolerance_fraction": 0.010802296067480545
+          },
+          "k_proj": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.3961975093023113e-07,
+            "max_relative_error": 1.8808121038778867e-05,
+            "max_tolerance_fraction": 0.0011584226175989794
+          },
+          "mlp_conv": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 4.176479492246088e-07,
+            "max_relative_error": 1.58524107502561e-05,
+            "max_tolerance_fraction": 0.002673369484105113
+          },
+          "mlp_norm": {
+            "count": 192,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.429449463825506e-07,
+            "max_relative_error": 5.405894307968953e-06,
+            "max_tolerance_fraction": 0.006203594288833636
+          },
+          "mlp_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 4.807977296295007e-07,
+            "max_relative_error": 1.3936878449297682e-05,
+            "max_tolerance_fraction": 0.002761171876764945
+          },
+          "output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 4.7459655760917485e-07,
+            "max_relative_error": 1.090774813745703e-05,
+            "max_tolerance_fraction": 0.0023086494799893684
+          },
+          "post_attention": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.2294860840533772e-07,
+            "max_relative_error": 5.3168098807459446e-06,
+            "max_tolerance_fraction": 0.0005962456778289114
+          },
+          "q_norm": {
+            "count": 192,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 4.800402833016193e-07,
+            "max_relative_error": 2.2731620471087185e-05,
+            "max_tolerance_fraction": 0.011119877651504824
+          },
+          "q_proj": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.384340209715674e-07,
+            "max_relative_error": 2.2687428533748852e-05,
+            "max_tolerance_fraction": 0.001445346870390235
+          },
+          "r_proj": {
+            "count": 48,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.1959094237123935e-07,
+            "max_relative_error": 1.2087360243655339e-06,
+            "max_tolerance_fraction": 0.0008288864622749108
+          },
+          "relative_bias": {
+            "count": 72,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.490976410389866e-08,
+            "max_relative_error": 2.748909340970664e-05,
+            "max_tolerance_fraction": 0.00013996375885344612
+          },
+          "routed_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 4.7505615219378683e-07,
+            "max_relative_error": 1.3839456986723227e-05,
+            "max_tolerance_fraction": 0.0025677852076912613
+          },
+          "router_logits": {
+            "count": 36,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.194437561080619e-07,
+            "max_relative_error": 3.420759977852264e-06,
+            "max_tolerance_fraction": 0.0009418601884170291
+          },
+          "router_weights": {
+            "count": 12,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 4.770935060349757e-07,
+            "max_relative_error": 1.8842402588632978e-07,
+            "max_tolerance_fraction": 0.00906014119929764
+          },
+          "shared_gammas": {
+            "count": 12,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 4.806207276608632e-07,
+            "max_relative_error": 1.9422610486122476e-07,
+            "max_tolerance_fraction": 0.009334100139706028
+          },
+          "shared_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 6.708122406162698e-08,
+            "max_relative_error": 0.0006831554191757096,
+            "max_tolerance_fraction": 0.0006223351127991403
+          },
+          "v_conv": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 3.547229003864061e-07,
+            "max_relative_error": 1.4229077528140416e-05,
+            "max_tolerance_fraction": 0.0017124962102670702
+          },
+          "v_proj": {
+            "count": 96,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.982836608822481e-07,
+            "max_relative_error": 3.884462920401081e-06,
+            "max_tolerance_fraction": 0.00152385941585993
+          }
+        }
+      },
+      {
+        "name": "mlp_2",
+        "output": {
+          "count": 192,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 2.088530121069354e-07,
+          "max_relative_error": 6.538166295916915e-05,
+          "max_tolerance_fraction": 0.001584496418527383
+        },
+        "traces": {
+          "mlp_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 2.088530121069354e-07,
+            "max_relative_error": 6.538166295916915e-05,
+            "max_tolerance_fraction": 0.001584496418527383
+          },
+          "routed_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.7850244141137672e-07,
+            "max_relative_error": 2.3576707475291827e-05,
+            "max_tolerance_fraction": 0.001473452249698897
+          },
+          "router_logits": {
+            "count": 36,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 9.312939758341493e-08,
+            "max_relative_error": 1.5769043475521456e-05,
+            "max_tolerance_fraction": 0.0009258261973881361
+          },
+          "router_weights": {
+            "count": 12,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 7.195019531280877e-07,
+            "max_relative_error": 2.568418816523472e-07,
+            "max_tolerance_fraction": 0.012399468082781756
+          },
+          "shared_gammas": {
+            "count": 12,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 4.796057129219378e-07,
+            "max_relative_error": 2.1191224468777636e-07,
+            "max_tolerance_fraction": 0.010147258859040833
+          },
+          "shared_output": {
+            "count": 192,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 4.47507453871232e-08,
+            "max_relative_error": 0.0001273620661330654,
+            "max_tolerance_fraction": 0.0004088570592910308
+          }
+        }
+      },
+      {
+        "name": "local_window_512",
+        "output": {
+          "count": 16416,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 7.157144163993934e-07,
+          "max_relative_error": 0.009909014555895197,
+          "max_tolerance_fraction": 0.00601026340442629
+        },
+        "traces": {
+          "attention_probs": {
+            "count": 8,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.997039794117029e-08,
+            "max_relative_error": 1.3879300130504254e-06,
+            "max_tolerance_fraction": 0.005874113507238346
+          },
+          "relative_bias": {
+            "count": 8,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 3.2763672663804755e-08,
+            "max_relative_error": 7.421133023958729e-08,
+            "max_tolerance_fraction": 0.00021400889004125176
+          }
+        }
+      },
+      {
+        "name": "global_extent_1024",
+        "output": {
+          "count": 32800,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 6.007516479833441e-07,
+          "max_relative_error": 0.0727910956773128,
+          "max_tolerance_fraction": 0.0032932401661064296
+        },
+        "traces": {
+          "attention_probs": {
+            "count": 8,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 3.365988694367661e-12,
+            "max_relative_error": 1.440343796006436e-06,
+            "max_tolerance_fraction": 1.6657236477301245e-06
+          },
+          "relative_bias": {
+            "count": 8,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 9.52148582200607e-09,
+            "max_relative_error": 2.281849532668325e-09,
+            "max_tolerance_fraction": 3.8757958354882955e-06
+          }
+        }
+      },
+      {
+        "name": "tau_floor",
+        "output": {
+          "count": 64,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 5.210597610327827e-08,
+          "max_relative_error": 4.029188522290323e-05,
+          "max_tolerance_fraction": 0.0004906916179147403
+        },
+        "traces": {
+          "attention_output": {
+            "count": 64,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 5.210597610327827e-08,
+            "max_relative_error": 4.029188522290323e-05,
+            "max_tolerance_fraction": 0.0004906916179147403
+          },
+          "attention_probs": {
+            "count": 8,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 4.610595794041217e-10,
+            "max_relative_error": 1.0822077245172715e-09,
+            "max_tolerance_fraction": 4.382394690658235e-05
+          },
+          "k_conv": {
+            "count": 32,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.1942279054544258e-07,
+            "max_relative_error": 4.664784127000596e-07,
+            "max_tolerance_fraction": 0.0007129330886213587
+          },
+          "k_norm": {
+            "count": 32,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.4104614260167523e-07,
+            "max_relative_error": 5.085110875720888e-07,
+            "max_tolerance_fraction": 0.005219919116578522
+          },
+          "k_proj": {
+            "count": 32,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.1934783938905014e-07,
+            "max_relative_error": 7.878939702028041e-07,
+            "max_tolerance_fraction": 0.0006833398507077503
+          },
+          "q_norm": {
+            "count": 64,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 4.173244934069231e-07,
+            "max_relative_error": 2.805086533663782e-06,
+            "max_tolerance_fraction": 0.011642100488987695
+          },
+          "q_proj": {
+            "count": 64,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.7846337885263353e-07,
+            "max_relative_error": 2.656811339302076e-06,
+            "max_tolerance_fraction": 0.0011913117110151448
+          },
+          "query_scaled": {
+            "count": 64,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 4.173244934069231e-07,
+            "max_relative_error": 2.805086533663782e-06,
+            "max_tolerance_fraction": 0.011642100488987695
+          },
+          "r_proj": {
+            "count": 16,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.1890405271497428e-07,
+            "max_relative_error": 2.5975560770744614e-07,
+            "max_tolerance_fraction": 0.0006443628991883022
+          },
+          "relative_bias": {
+            "count": 8,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.4901091763275254e-08,
+            "max_relative_error": 2.875505459057045e-07,
+            "max_tolerance_fraction": 0.00013853431831320758
+          },
+          "relative_scaled": {
+            "count": 8,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.4901091763275254e-08,
+            "max_relative_error": 2.8941776800159974e-07,
+            "max_tolerance_fraction": 0.00013853431831320758
+          },
+          "v_conv": {
+            "count": 32,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 8.984899901864907e-08,
+            "max_relative_error": 6.054160136287649e-07,
+            "max_tolerance_fraction": 0.0007593281231303688
+          },
+          "v_proj": {
+            "count": 32,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 8.952211760782092e-08,
+            "max_relative_error": 5.464094859653273e-07,
+            "max_tolerance_fraction": 0.0007616370100785523
+          }
+        }
+      },
+      {
+        "name": "tau_after_floor",
+        "output": {
+          "count": 64,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 7.403887175572166e-08,
+          "max_relative_error": 0.00021665506180330933,
+          "max_tolerance_fraction": 0.0006039946513955431
+        },
+        "traces": {
+          "attention_output": {
+            "count": 64,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 7.403887175572166e-08,
+            "max_relative_error": 0.00021665506180330933,
+            "max_tolerance_fraction": 0.0006039946513955431
+          },
+          "attention_probs": {
+            "count": 8,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 5.9494201676280056e-08,
+            "max_relative_error": 1.013022497224253e-07,
+            "max_tolerance_fraction": 0.004328148011668219
+          },
+          "k_conv": {
+            "count": 32,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.0459729765655013e-07,
+            "max_relative_error": 1.6852841908394553e-05,
+            "max_tolerance_fraction": 0.0008840397931681768
+          },
+          "k_norm": {
+            "count": 32,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.4227478023775006e-07,
+            "max_relative_error": 1.6855705363632178e-05,
+            "max_tolerance_fraction": 0.00790565688427545
+          },
+          "k_proj": {
+            "count": 32,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.0477107240114414e-07,
+            "max_relative_error": 1.6834805716784468e-05,
+            "max_tolerance_fraction": 0.0008857883311672234
+          },
+          "q_norm": {
+            "count": 64,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.6804269409597126e-07,
+            "max_relative_error": 1.2455058194628408e-06,
+            "max_tolerance_fraction": 0.009108928021705398
+          },
+          "q_proj": {
+            "count": 64,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.1909100339213552e-07,
+            "max_relative_error": 1.1918215772674784e-06,
+            "max_tolerance_fraction": 0.000779951706881254
+          },
+          "query_scaled": {
+            "count": 64,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.679846343722758e-07,
+            "max_relative_error": 1.2400057210268119e-06,
+            "max_tolerance_fraction": 0.009106950359284528
+          },
+          "r_proj": {
+            "count": 16,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.784241943081355e-07,
+            "max_relative_error": 6.162827464770335e-07,
+            "max_tolerance_fraction": 0.0011861927232221143
+          },
+          "relative_bias": {
+            "count": 8,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 7.4231376670508276e-09,
+            "max_relative_error": 2.0150051234323956e-07,
+            "max_tolerance_fraction": 7.147749382393974e-05
+          },
+          "relative_scaled": {
+            "count": 8,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 7.431269072322166e-09,
+            "max_relative_error": 2.0206157278234936e-07,
+            "max_tolerance_fraction": 7.167662165583264e-05
+          },
+          "v_conv": {
+            "count": 32,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.195697632017101e-07,
+            "max_relative_error": 7.856790891766512e-07,
+            "max_tolerance_fraction": 0.0007650870718937962
+          },
+          "v_proj": {
+            "count": 32,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.1881372075084329e-07,
+            "max_relative_error": 8.227155111270464e-07,
+            "max_tolerance_fraction": 0.0007695991774938806
+          }
+        }
+      },
+      {
+        "name": "tau_far",
+        "output": {
+          "count": 64,
+          "limits": {
+            "atol": 0.0001,
+            "rtol": 0.0001
+          },
+          "max_absolute_error": 7.422085571140435e-08,
+          "max_relative_error": 1.4531365285721107e-05,
+          "max_tolerance_fraction": 0.000639928727052929
+        },
+        "traces": {
+          "attention_output": {
+            "count": 64,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 7.422085571140435e-08,
+            "max_relative_error": 1.4531365285721107e-05,
+            "max_tolerance_fraction": 0.000639928727052929
+          },
+          "attention_probs": {
+            "count": 8,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 1.1901748653286859e-07,
+            "max_relative_error": 1.8176582232422818e-07,
+            "max_tolerance_fraction": 0.007884200645590374
+          },
+          "k_conv": {
+            "count": 32,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.193917236186337e-07,
+            "max_relative_error": 3.672389112022988e-06,
+            "max_tolerance_fraction": 0.0008391856985651404
+          },
+          "k_norm": {
+            "count": 32,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 4.724365232355865e-07,
+            "max_relative_error": 3.6931023102981793e-06,
+            "max_tolerance_fraction": 0.007137088521895078
+          },
+          "k_proj": {
+            "count": 32,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.1930361937251277e-07,
+            "max_relative_error": 3.5594989710018327e-06,
+            "max_tolerance_fraction": 0.0008430400060391567
+          },
+          "q_norm": {
+            "count": 64,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 3.5615631110985646e-07,
+            "max_relative_error": 1.1986004436977822e-05,
+            "max_tolerance_fraction": 0.007161109876243832
+          },
+          "q_proj": {
+            "count": 64,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.1910235597767382e-07,
+            "max_relative_error": 1.2079729034523484e-05,
+            "max_tolerance_fraction": 0.000656299113439274
+          },
+          "query_scaled": {
+            "count": 64,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 4.7497253419237495e-07,
+            "max_relative_error": 1.1993460592550044e-05,
+            "max_tolerance_fraction": 0.00801605061718124
+          },
+          "r_proj": {
+            "count": 16,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 6.004580688223626e-08,
+            "max_relative_error": 3.7270231360558535e-06,
+            "max_tolerance_fraction": 0.0004186560893021824
+          },
+          "relative_bias": {
+            "count": 8,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 3.758794022562517e-09,
+            "max_relative_error": 1.8090191044817816e-07,
+            "max_tolerance_fraction": 3.6614527540024135e-05
+          },
+          "relative_scaled": {
+            "count": 8,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 5.592550086225279e-09,
+            "max_relative_error": 2.3775888614747687e-07,
+            "max_tolerance_fraction": 5.464025607590593e-05
+          },
+          "v_conv": {
+            "count": 32,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.7882022096404881e-07,
+            "max_relative_error": 1.767749084636944e-06,
+            "max_tolerance_fraction": 0.001064916357942854
+          },
+          "v_proj": {
+            "count": 32,
+            "limits": {
+              "atol": 0.0001,
+              "rtol": 0.0001
+            },
+            "max_absolute_error": 1.190422973529337e-07,
+            "max_relative_error": 1.8093973699401107e-06,
+            "max_tolerance_fraction": 0.0007760013536230476
+          }
+        }
+      },
+      {
+        "name": "biased_unbiased_mixture",
+        "output": {
+          "count": 4,
+          "limits": {
+            "atol": 2e-06,
+            "rtol": 2e-05
+          },
+          "max_absolute_error": 2.3910125723780595e-07,
+          "max_relative_error": 1.3695799693933763e-07,
+          "max_tolerance_fraction": 0.006476900810164397
+        },
+        "traces": {}
+      },
+      {
+        "name": "negative_logits",
+        "output": {
+          "count": 4,
+          "limits": {
+            "atol": 2e-06,
+            "rtol": 2e-05
+          },
+          "max_absolute_error": 4.133300812725338e-09,
+          "max_relative_error": 8.346534767372229e-10,
+          "max_tolerance_fraction": 4.023154206921685e-05
+        },
+        "traces": {}
+      },
+      {
+        "name": "stable_ties",
+        "output": {
+          "count": 4,
+          "limits": {
+            "atol": 2e-06,
+            "rtol": 2e-05
+          },
+          "max_absolute_error": 3.1231688346622377e-09,
+          "max_relative_error": 1.1094581161996873e-09,
+          "max_tolerance_fraction": 5.356991620351456e-05
+        },
+        "traces": {}
+      }
+    ],
+    "real_payload_bytes": 0,
+    "schema": 1
+  },
+  "model_mutations": {
+    "mutations": [
+      {
+        "case": "tau_far",
+        "name": "query scaling",
+        "rejection": "model acceptance failed: tau_far.output: [32] actual=0.0757053867, expected=0.0708148107, abs=0.00489, limit=0.000107; [33] actual=0.0300853476, expected=0.0290251411, abs=0.00106, limit=0.000103; [34] actual=0.0375129841, expected=0.0392751023, abs=0.00176, limit=0.000104"
+      },
+      {
+        "case": "tau_far",
+        "name": "relative scaling",
+        "rejection": "model acceptance failed: tau_far.output: [61] actual=0.0882261097, expected=0.088086307, abs=0.00014, limit=0.000109; [62] actual=-0.00209691771, expected=-0.00198660977, abs=0.00011, limit=0.0001"
+      },
+      {
+        "case": "local_window_512",
+        "name": "local window",
+        "rejection": "model acceptance failed: local_window_512.output: [16384] actual=-0.666563451, expected=-0.666322529, abs=0.000241, limit=0.000167; [16385] actual=-0.593859732, expected=-0.595247865, abs=0.00139, limit=0.00016; [16386] actual=0.326332867, expected=0.323221117, abs=0.00311, limit=0.000132"
+      },
+      {
+        "case": "local_window_512",
+        "name": "relative extent",
+        "rejection": "model acceptance failed: local_window_512.output: [16352] actual=-5.34517167e-05, expected=0.681383252, abs=0.681, limit=0.000168; [16353] actual=0.0116768684, expected=-0.948603213, abs=0.96, limit=0.000195; [16354] actual=-0.00144333148, expected=-2.29187274, abs=2.29, limit=0.000329"
+      },
+      {
+        "case": "prefix_1",
+        "name": "gate/up order",
+        "rejection": "model acceptance failed: prefix_1.output: [0] actual=0.017678529, expected=0.02928425, abs=0.0116, limit=0.000103; [1] actual=-0.043408785, expected=-0.0131282266, abs=0.0303, limit=0.000101; [2] actual=0.0201918036, expected=0.0188220814, abs=0.00137, limit=0.000102"
+      },
+      {
+        "case": "prefix_1",
+        "name": "shared gamma",
+        "rejection": "model acceptance failed: prefix_1.output: [0] actual=0.031238744, expected=0.02928425, abs=0.00195, limit=0.000103; [1] actual=-0.011418378, expected=-0.0131282266, abs=0.00171, limit=0.000101; [2] actual=0.0169437267, expected=0.0188220814, abs=0.00188, limit=0.000102"
+      },
+      {
+        "case": "prefix_1",
+        "name": "logit divisor",
+        "rejection": "model acceptance failed: prefix_1.output: [0] actual=7.49676466, expected=0.02928425, abs=7.47, limit=0.000103; [1] actual=-3.36082983, expected=-0.0131282266, abs=3.35, limit=0.000101; [2] actual=4.81845284, expected=0.0188220814, abs=4.8, limit=0.000102"
+      }
+    ],
+    "probe_sha256": "44729e498b6e7dfa0bc03d900f68cba0d352534d588c70d20536bc8f96d93677",
+    "schema": 1,
+    "source_sha256": "2d9cd07035bcb8a8df0d6ec60f893a79867e9385c525431771dda9324f27667d"
+  },
+  "real": {
+    "cases": [
+      {
+        "name": "real_layer_0",
+        "output": {
+          "count": 4096,
+          "limits": {
+            "atol": 0.001,
+            "rtol": 0.0002
+          },
+          "max_absolute_error": 0.004275117187489741,
+          "max_relative_error": 0.011067315804792229,
+          "max_tolerance_fraction": 0.03622266886323672
+        },
+        "traces": {
+          "attention_output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 6.197874755864419e-06,
+            "max_relative_error": 0.00598947706460568,
+            "max_tolerance_fraction": 0.005092941891446492
+          },
+          "attention_probs": {
+            "count": 32,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 0.0,
+            "max_relative_error": 0.0,
+            "max_tolerance_fraction": 0.0
+          },
+          "attn_conv": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 3.42941162116972e-05,
+            "max_relative_error": 0.005989475676338028,
+            "max_tolerance_fraction": 0.009213882158606482
+          },
+          "attn_norm": {
+            "count": 4096,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 6.0100235010907e-08,
+            "max_relative_error": 1.9514254783414898e-07,
+            "max_tolerance_fraction": 0.0021154028933359215
+          },
+          "k_conv": {
+            "count": 1024,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 7.030353088355312e-06,
+            "max_relative_error": 0.0014489117757633643,
+            "max_tolerance_fraction": 0.005022487776129215
+          },
+          "k_norm": {
+            "count": 1024,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.2884532470790475e-05,
+            "max_relative_error": 0.0014489941835321546,
+            "max_tolerance_fraction": 0.24858367832315248
+          },
+          "k_proj": {
+            "count": 1024,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 4.406437072779212e-06,
+            "max_relative_error": 0.0014488754503821503,
+            "max_tolerance_fraction": 0.003524512569340549
+          },
+          "mlp_conv": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.004145468750039072,
+            "max_relative_error": 0.1791894990521174,
+            "max_tolerance_fraction": 0.033198772243356406
+          },
+          "mlp_norm": {
+            "count": 4096,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 3.577603759907788e-06,
+            "max_relative_error": 0.0010938544810194352,
+            "max_tolerance_fraction": 0.11293554218929593
+          },
+          "mlp_output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.00022889052733887638,
+            "max_relative_error": 0.179189555590456,
+            "max_tolerance_fraction": 0.03646134786857127
+          },
+          "output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.004275117187489741,
+            "max_relative_error": 0.011067315804792229,
+            "max_tolerance_fraction": 0.03622266886323672
+          },
+          "post_attention": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 3.42941162116972e-05,
+            "max_relative_error": 0.0010941916827135968,
+            "max_tolerance_fraction": 0.009476444491784796
+          },
+          "q_norm": {
+            "count": 4096,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.3363715820678976e-05,
+            "max_relative_error": 0.001376263476729539,
+            "max_tolerance_fraction": 0.3359895247955686
+          },
+          "q_proj": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 7.6291986084164876e-06,
+            "max_relative_error": 0.0013762581889477845,
+            "max_tolerance_fraction": 0.005286763260307001
+          },
+          "r_proj": {
+            "count": 512,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 2.7415479736392356e-06,
+            "max_relative_error": 0.002444307497680871,
+            "max_tolerance_fraction": 0.0023794253441358965
+          },
+          "relative_bias": {
+            "count": 32,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 2.98023718259266e-06,
+            "max_relative_error": 1.8155032451246658e-05,
+            "max_tolerance_fraction": 0.0027035673005022885
+          },
+          "v_conv": {
+            "count": 1024,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 7.750612945611746e-07,
+            "max_relative_error": 0.00030868720788304274,
+            "max_tolerance_fraction": 0.0007543004939528149
+          },
+          "v_proj": {
+            "count": 1024,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 3.3356823729846496e-06,
+            "max_relative_error": 0.0003087192483832663,
+            "max_tolerance_fraction": 0.002774883475938907
+          }
+        }
+      },
+      {
+        "name": "real_layer_2",
+        "output": {
+          "count": 4096,
+          "limits": {
+            "atol": 0.001,
+            "rtol": 0.0002
+          },
+          "max_absolute_error": 0.0002861027343783462,
+          "max_relative_error": 0.0014863285482996,
+          "max_tolerance_fraction": 0.1476350849945907
+        },
+        "traces": {
+          "attention_output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 6.48287597648789e-05,
+            "max_relative_error": 0.0051110559936867386,
+            "max_tolerance_fraction": 0.0426982220274826
+          },
+          "attention_probs": {
+            "count": 32,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 0.0,
+            "max_relative_error": 0.0,
+            "max_tolerance_fraction": 0.0
+          },
+          "attn_conv": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.0001411726562494664,
+            "max_relative_error": 0.005111100644723165,
+            "max_tolerance_fraction": 0.05046243777710655
+          },
+          "attn_norm": {
+            "count": 4096,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 1.241964722176192e-07,
+            "max_relative_error": 2.1727018190118216e-07,
+            "max_tolerance_fraction": 0.0038423178447180364
+          },
+          "k_conv": {
+            "count": 1024,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 4.7665869139734696e-05,
+            "max_relative_error": 0.0014356168396247539,
+            "max_tolerance_fraction": 0.02892730872969325
+          },
+          "k_norm": {
+            "count": 1024,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.2173346832299323e-05,
+            "max_relative_error": 0.0014354818826806425,
+            "max_tolerance_fraction": 0.5943218180465757
+          },
+          "k_proj": {
+            "count": 1024,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 2.0024545898778e-05,
+            "max_relative_error": 0.0014355894805017136,
+            "max_tolerance_fraction": 0.013652795473405449
+          },
+          "mlp_conv": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.0002861156250020258,
+            "max_relative_error": 0.004740579149747739,
+            "max_tolerance_fraction": 0.12466046619891745
+          },
+          "mlp_norm": {
+            "count": 4096,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 9.061202392413037e-06,
+            "max_relative_error": 0.008617899944382251,
+            "max_tolerance_fraction": 0.21935769119142012
+          },
+          "mlp_output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 6.532964721639445e-05,
+            "max_relative_error": 0.004740556745112539,
+            "max_tolerance_fraction": 0.047531373736277145
+          },
+          "output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.0002861027343783462,
+            "max_relative_error": 0.0014863285482996,
+            "max_tolerance_fraction": 0.1476350849945907
+          },
+          "post_attention": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.0001411726562494664,
+            "max_relative_error": 0.008617939001524464,
+            "max_tolerance_fraction": 0.048107989368780066
+          },
+          "q_norm": {
+            "count": 4096,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 5.34486083978436e-05,
+            "max_relative_error": 0.0031158181461247983,
+            "max_tolerance_fraction": 0.3867439319590392
+          },
+          "q_proj": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 6.48461914067866e-05,
+            "max_relative_error": 0.003115766014366291,
+            "max_tolerance_fraction": 0.017539812068571466
+          },
+          "r_proj": {
+            "count": 512,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 1.5975899658293713e-05,
+            "max_relative_error": 0.00013805188664421522,
+            "max_tolerance_fraction": 0.009125393107666312
+          },
+          "relative_bias": {
+            "count": 32,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 1.3350454101335174e-05,
+            "max_relative_error": 5.343646297421083e-06,
+            "max_tolerance_fraction": 0.0054522100139889245
+          },
+          "routed_output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 6.437617187504685e-05,
+            "max_relative_error": 0.009995790078544495,
+            "max_tolerance_fraction": 0.04737055163720856
+          },
+          "router_logits": {
+            "count": 258,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 1.52583251953331e-05,
+            "max_relative_error": 0.0003144323584719192,
+            "max_tolerance_fraction": 0.00973837860310369
+          },
+          "router_weights": {
+            "count": 6,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 1.8584366424240217e-09,
+            "max_relative_error": 2.353974243497496e-07,
+            "max_tolerance_fraction": 0.0008612255185906277
+          },
+          "shared_gammas": {
+            "count": 2,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 3.7241910267465927e-09,
+            "max_relative_error": 7.709126060080723e-07,
+            "max_tolerance_fraction": 0.001776285197868167
+          },
+          "shared_output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 1.3948708190936188e-05,
+            "max_relative_error": 0.005030591024519959,
+            "max_tolerance_fraction": 0.0120976302315464
+          },
+          "v_conv": {
+            "count": 1024,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 7.391061157213663e-06,
+            "max_relative_error": 0.0033757270906474273,
+            "max_tolerance_fraction": 0.006290350842088872
+          },
+          "v_proj": {
+            "count": 1024,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 3.0515479736425988e-05,
+            "max_relative_error": 0.0033756014252760186,
+            "max_tolerance_fraction": 0.01759467434175453
+          }
+        }
+      },
+      {
+        "name": "real_layer_5",
+        "output": {
+          "count": 4096,
+          "limits": {
+            "atol": 0.001,
+            "rtol": 0.0002
+          },
+          "max_absolute_error": 0.00039635449218167196,
+          "max_relative_error": 0.3977635768418146,
+          "max_tolerance_fraction": 0.1782023940531094
+        },
+        "traces": {
+          "attention_output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.000106778808593333,
+            "max_relative_error": 0.0019900603742299553,
+            "max_tolerance_fraction": 0.04433308651536063
+          },
+          "attention_probs": {
+            "count": 32,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 0.0,
+            "max_relative_error": 0.0,
+            "max_tolerance_fraction": 0.0
+          },
+          "attn_conv": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.0002057382812523656,
+            "max_relative_error": 0.0019901158286427553,
+            "max_tolerance_fraction": 0.0582622133377997
+          },
+          "attn_norm": {
+            "count": 4096,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 1.241964722176192e-07,
+            "max_relative_error": 2.1844255553277496e-07,
+            "max_tolerance_fraction": 0.003851984845862817
+          },
+          "k_conv": {
+            "count": 1024,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 4.19713378896347e-05,
+            "max_relative_error": 0.00023712463549256232,
+            "max_tolerance_fraction": 0.014193882830694355
+          },
+          "k_norm": {
+            "count": 1024,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 2.6711669921297698e-05,
+            "max_relative_error": 0.00023673463897401194,
+            "max_tolerance_fraction": 0.41312595284844356
+          },
+          "k_proj": {
+            "count": 1024,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 1.90774731443355e-05,
+            "max_relative_error": 0.00023709542854651896,
+            "max_tolerance_fraction": 0.01169520644670792
+          },
+          "mlp_conv": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.0004581669921890352,
+            "max_relative_error": 0.008116431466914525,
+            "max_tolerance_fraction": 0.16830968315464312
+          },
+          "mlp_norm": {
+            "count": 4096,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 5.008125000038888e-06,
+            "max_relative_error": 0.020305579603874663,
+            "max_tolerance_fraction": 0.1199180440690529
+          },
+          "mlp_output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.0001106296557615849,
+            "max_relative_error": 0.008116427991805269,
+            "max_tolerance_fraction": 0.09136584416993364
+          },
+          "output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.00039635449218167196,
+            "max_relative_error": 0.3977635768418146,
+            "max_tolerance_fraction": 0.1782023940531094
+          },
+          "post_attention": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.0002057382812523656,
+            "max_relative_error": 0.020305754723603592,
+            "max_tolerance_fraction": 0.06025128668968321
+          },
+          "q_norm": {
+            "count": 4096,
+            "limits": {
+              "atol": 2e-05,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 3.051978027279745e-05,
+            "max_relative_error": 0.0011976947820259312,
+            "max_tolerance_fraction": 0.5157754834207436
+          },
+          "q_proj": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 4.1914013671373596e-05,
+            "max_relative_error": 0.001198097821444522,
+            "max_tolerance_fraction": 0.016608647863200397
+          },
+          "r_proj": {
+            "count": 512,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 1.8354477539173075e-05,
+            "max_relative_error": 0.0012884487789590969,
+            "max_tolerance_fraction": 0.011507927228788463
+          },
+          "relative_bias": {
+            "count": 32,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 1.0486013183097498e-05,
+            "max_relative_error": 8.043445956753223e-05,
+            "max_tolerance_fraction": 0.0075570902772989805
+          },
+          "routed_output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 0.0001087318115224889,
+            "max_relative_error": 0.03658434501980472,
+            "max_tolerance_fraction": 0.10176788140709246
+          },
+          "router_logits": {
+            "count": 258,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 1.334821289056265e-05,
+            "max_relative_error": 0.00018187108464814486,
+            "max_tolerance_fraction": 0.009598145798282408
+          },
+          "router_weights": {
+            "count": 6,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 3.7206670765177474e-09,
+            "max_relative_error": 1.6196154768323742e-07,
+            "max_tolerance_fraction": 0.0015128041080584276
+          },
+          "shared_gammas": {
+            "count": 2,
+            "limits": {
+              "atol": 2e-06,
+              "rtol": 2e-05
+            },
+            "max_absolute_error": 1.0282337474520897e-08,
+            "max_relative_error": 7.780118672245149e-07,
+            "max_tolerance_fraction": 0.004541019816654642
+          },
+          "shared_output": {
+            "count": 4096,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 4.267758117659781e-05,
+            "max_relative_error": 0.014442427531081707,
+            "max_tolerance_fraction": 0.02753398849254302
+          },
+          "v_conv": {
+            "count": 1024,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 1.2162768554535575e-05,
+            "max_relative_error": 0.000968301303183037,
+            "max_tolerance_fraction": 0.007023480573748214
+          },
+          "v_proj": {
+            "count": 1024,
+            "limits": {
+              "atol": 0.001,
+              "rtol": 0.0002
+            },
+            "max_absolute_error": 1.8122648926421903e-05,
+            "max_relative_error": 0.0009682785060811876,
+            "max_tolerance_fraction": 0.009146857016638645
+          }
+        }
+      }
+    ],
+    "real_payload_bytes": 1259738686,
+    "schema": 1
+  },
+  "real_range_manifest_sha256": {
+    "layer-0": "10d0ba96156162517714476c6f1353130d5c08620d39a753086bb19303e0f409",
+    "layer-2": "03f665f949dfa046408980fdedd7cea183da477fc6702fe6ef319ee86cff772a",
+    "layer-5": "79c2f23b2db8e4a778c32a1b27212310599ba6b4a4f9488798127916751a9174"
+  },
+  "schema": 1,
+  "source_sha256": {
+    "include/inkling/inkling.h": "2d6613f940bbfe95dcc1b9709025a2dd7b40e6cdaf8061c4c9877d0e2365f4a2",
+    "include/inkling/inkling_model.h": "d4265f22b1a3b4b671c7d953d3160722f92d615565389cca22acd29c36075c6b",
+    "makefile": "27ca5890b20e35fda47155034801bbefb9ee764b74a0657a4013a0440fa2a453",
+    "src/cli/inkling_run.c": "5623f3f5bf9cf0a6a4a62b9b0046fec1604034a44a49f33dcec27f147e0e61a6",
+    "src/core/inkling_alloc.c": "f10fc3862e5d559eb0a2e847a5f225e596f161c03e52f0e366ede92cb4bac626",
+    "src/core/inkling_alloc.h": "44b26f38192cd3a8671337acaeb20ecddc163aeb8ff69f3dae38230a97e291cb",
+    "src/core/inkling_bf16.c": "8112cafe308c02e61cd555aff512ee990c9fa5566e556886704d8d9efd51a5d0",
+    "src/core/inkling_bf16.h": "a8150a66fd74718b9136fea8ad29299db41f6e4755c376b5007ff0f03e26d0e0",
+    "src/core/inkling_math.c": "72f4a2bee33a806e48b8618aa16c6463800385c70709925ea7bc5d5ca36aed12",
+    "src/core/inkling_math.h": "625a38277e19101d3a87663cd18f186229acf2e2984cfe3c4dd60dafaa0ea6ea",
+    "src/core/inkling_nvfp4.c": "d885040e9220eae9e29b3355d8eb6f9e22248e1fa7dfaa7fad56140795934a3b",
+    "src/core/inkling_nvfp4.h": "bec8876ee8f4e8dede5292b63c9757655215bdd4bb7a3267b877dc8cbd3d0400",
+    "src/io/inkling_config.c": "0883d9c26f996d2b7845af514f91a83ebf2b195a182da51150990dc7ce3987e4",
+    "src/io/inkling_index.c": "dd18b9126aba60263f4ed425f38d7126a7781817c68ff45de4714eaa9c4ba032",
+    "src/io/inkling_json.c": "87cd9ef44c1a0d40b4aefc17d6396b9c999d8f0f58abcaebfac3b2680311bee1",
+    "src/io/inkling_json.h": "f05886b0a6e1684c5e1f00bc31aa670e47074124049b47d1caac24718ca60154",
+    "src/io/inkling_safetensors.c": "bc38d6c67cddf705b6993d8be1ebfac2d34479b44b150c1f007ba19b40db56fd",
+    "src/io/inkling_verify.c": "ddeb00d8961ba3280939a16741bf6010922ea1cefd031fb222ed9ff40899ba92",
+    "src/model/inkling_bind.c": "d84ff6cd47f5b916874d632aab9c625c72590f63c37e9eca64f986def647b75c",
+    "src/model/inkling_forward.c": "2d9cd07035bcb8a8df0d6ec60f893a79867e9385c525431771dda9324f27667d",
+    "src/model/inkling_model_internal.h": "47eb67d258e3e3c07664084bffd6f5403eeb66191c0f4ed45db3bbfd96378c06",
+    "tests/fixtures/checkpoint/README.md": "c3777737bee55197dc189277cd0f271ad7c5d1a7a81421e66b57736cfe31a853",
+    "tests/fixtures/checkpoint/config.json": "dcb5b1d587bce2f1e6b29833d739a724d05b4bfaa2dc1164fbe679330478ba53",
+    "tests/fixtures/checkpoint/headers/model-00001-of-00009.safetensors": "479502278cbe514288cbc01adfc873770502a9f43a54771cb440ccc91df06bc1",
+    "tests/fixtures/checkpoint/headers/model-00002-of-00009.safetensors": "3f12ffaf73d958a53e4dbd9af102d7130474372638b57569650371ebfd9f8383",
+    "tests/fixtures/checkpoint/headers/model-00003-of-00009.safetensors": "775512c80ac6555e47df05e2a7d31939c2be4ebe08ae827c975a20e93aa1efce",
+    "tests/fixtures/checkpoint/headers/model-00004-of-00009.safetensors": "4b7ef80c4435a5065a88d7098cf17bd9329112ee72475ef826a0b31d86b59bf8",
+    "tests/fixtures/checkpoint/headers/model-00005-of-00009.safetensors": "ec0627a1ad1fc26afe7350ffd691f9204e769d283e1952cfbf449727f2259767",
+    "tests/fixtures/checkpoint/headers/model-00006-of-00009.safetensors": "13928ed02b0c49c8c9193727a1816ddc0e2a7f0b9c1ad8fc9ae65cdedef133e0",
+    "tests/fixtures/checkpoint/headers/model-00007-of-00009.safetensors": "d8c5a11a684392157cffe7990e778c4147742431bc96c3fb01a95b051cd729ec",
+    "tests/fixtures/checkpoint/headers/model-00008-of-00009.safetensors": "937eed03657e42fb9529f6f55ad88d2d11e3c4b9de02257c1acc691f3ef65704",
+    "tests/fixtures/checkpoint/headers/model-00009-of-00009.safetensors": "0c659f2bb8a212f4c066fd476d3d2705ad1bfc0b6bc5347d8170298b34ca99c3",
+    "tests/fixtures/checkpoint/headers/mtp.safetensors": "b1c956e85079d14a1dbfddd4eae866bf381d490675b69d82b930ee7af06cc2be",
+    "tests/fixtures/checkpoint/hf_quant_config.json": "70f2ae087bb4ef851aea67b9938382af0bb9dacc6d19e8ebafbeeaa832a3e71e",
+    "tests/fixtures/checkpoint/metadata-manifest.json": "4a0c954c1137e49b48a9a93e0ee1edd4803856bcfd7314b92fdd5da5ab7ebc26",
+    "tests/fixtures/checkpoint/model.safetensors.index.json": "2e3a00b15c5498687538e56f5adcb5784373079074636afb90ecefa1ca9baeee",
+    "tests/fixtures/model/config.json": "1530a6a9f8c55d47f1f5c6c77c3d63ad0e89d4148d62690a82e09885261f2bc5",
+    "tests/fixtures/model/hf_quant_config.json": "1ff2e32296460a90ccc0bdd91f70e13280ab923b920cf4566c0e93e07beb69cc",
+    "tests/fixtures/model/manifest.json": "03ba854b30b14bf46f3f1436fcf66729b713e62b0b0f8e50b701488d693e79d0",
+    "tests/fixtures/model/model-00001-of-00002.safetensors": "ca949a7be28bcb0883f6cf7c9edf16d3165748a120cfe263f7ca22ed10a6a4ed",
+    "tests/fixtures/model/model-00002-of-00002.safetensors": "a00c2467b63118060709346503278d8abb28c53508ada4ddee1a96a6ec16b768",
+    "tests/fixtures/model/model.safetensors.index.json": "0148f365058659092f5acb9138a3eeac580573335b89fd761c383d60dcfe1e75",
+    "tests/fixtures/model/oracle.json": "f12ccfdd132c1f334ce99012957e7d86bca7e5001509a7a01b252ac9d45ba433",
+    "tests/fixtures/nvfp4.json": "8edb921bf2ad3e9a87489e66ceb9e329d2dfba0ffacf8fd574e72aa45ceb8489",
+    "tests/fixtures/oracle-manifest.json": "c4c2e889453805275c3acc0aa139fbd61158aaa274f6dbebda871ba68975f9d4",
+    "tests/fixtures/primitives.json": "f18bc6d112416bb8a1d64e306f1080c93f725e9c4ffaf6267aa3b10dc004a446",
+    "tests/fixtures/tiny.safetensors": "3f04415c9945d4bf5f4611102fd898af9ec437979a06fd8886dbf9dbd05587c5",
+    "tests/model_probe.c": "44729e498b6e7dfa0bc03d900f68cba0d352534d588c70d20536bc8f96d93677",
+    "tests/test_alloc.c": "50ba91a31aa369a4d38534578d6be04fe1f9a66f4ee49f07a24986466ee84bd5",
+    "tests/test_bf16.c": "4297618cebe0e34f4f2219444a56ea89cf4183db201a94edbbb25a2a5f26a34b",
+    "tests/test_catalogue.c": "2ff99e3f292793dee234c831f06f7cce308db559f9c0bc875f6b398bd24974bc",
+    "tests/test_config.c": "951abc0f1ab4994c4565a652d90024d11836b3576a60624fe8f0e5da59d87601",
+    "tests/test_json.c": "f3c6c423e79cddfa0136c241a96ad402f11d4afd40ecd18876e34d73d83c6210",
+    "tests/test_math.c": "7dba271f00846f593ab251f75a2ece4b2ed7df3ccb5993c9f192c26b26958be0",
+    "tests/test_model_bind.c": "69a87ca553b216a25ac7c10c0d7a164743414f78e5e45fe03b6a185e9f9f7d19",
+    "tests/test_model_fixture.py": "20f7685214d4491cb299cd023bf079446f21721dc8dedd4040c79e256ac1e0a2",
+    "tests/test_model_guards.py": "08d650cc12e5a2e620468add3471508fbdf626cfd40912b7e6daa2c6ea17bb3a",
+    "tests/test_model_runtime.c": "a769ed69e42387b29077c52f82349414d9ff8a677a900d0ea6d3bf512cb683d9",
+    "tests/test_nvfp4.c": "3188a13858bff36b3fbe5abd7372503c4f6e147610d44599b15c6e5706713260",
+    "tests/test_nvfp4_fixture.py": "e5fd9a1b81f7f16c56f473299caecd3dcd0ff0413d652b68a5010be37307478b",
+    "tests/test_primitive_fixture.py": "0b381af1ba171d50fb2ee74e3eecc680efac0120ddf95400a55bc71a9594ae3f",
+    "tests/test_safetensors.c": "5f0b3ac4a25823f681624bc36ab4d7bc92ba479de9e0e8244c3a3825b566d8c9",
+    "tests/test_verify.py": "5201b6ff9f0a98a3c9d433dbfe860e211becbfbbc42cedfdf55bb8f3e849e25b",
+    "tools/check_model.py": "627291b1811e43ac431a1688ba15ca4b44b5e5b5fd76da18075f5e12546a3bd1",
+    "tools/check_model_mutations.py": "da3eb4f840e1bdf2695cb6026ba7b01cac0159e4195a1b8ef457897a681b3e1e",
+    "tools/check_primitive_mutations.py": "a1501fc3412303d7861e6d24546d91f0c16aea625af39deb4afad16592c237a4",
+    "tools/emit_fixtures.py": "bf51875ca93b46c8f8390220377bcc0728339e489156cbdad4bb4b5388bcab6d",
+    "tools/emit_model_fixtures.py": "4b03e06461632782af06f241529e8c456b266fe3ae0100f9640d1b840ba3f671",
+    "tools/fetch_checkpoint_metadata.py": "e5ff323b707b31db777faaf9c5e779f5654e115e15ef6f11f9019316f4bbc3e9",
+    "tools/fetch_model_layers.py": "46fcf08a4b3ffae708fd8b9b19ab078af8e15ee6cf587ed8044102f1b91d0647",
+    "tools/fetch_nvfp4_fixture.py": "7c238f44c7c8e080ebcdcb1fd087233e296c22ab58bd5ea22633c537e7ec01db",
+    "tools/inkling_model_ref.py": "e280884f42ff0e91e21b94ee4022b34eb9d7835e9667c38c599c451e8562d184",
+    "tools/inkling_ref.py": "b731a480394959020677c211ff88daa399a09714ada8d1b2801088d817f7f5ca",
+    "tools/make_tiny_fixture.py": "d2136e082282a7317eeecdc77aebefb90352d381595c693e1f41ea58e4c49615"
+  }
+}
