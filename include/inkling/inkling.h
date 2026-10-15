@@ -52,6 +52,11 @@ typedef struct {
     uint32_t dense_intermediate_size;
     uint32_t expert_intermediate_size;
 
+    uint32_t swa_head_dim, swa_num_attention_heads, swa_num_key_value_heads;
+    uint32_t dense_mlp_idx, unpadded_vocab_size, log_scaling_n_floor;
+    float log_scaling_alpha, logits_mup_width_multiplier;
+    int execution_fields_valid;
+
     float rms_norm_epsilon;
     float route_scale;
 } InklingConfig;

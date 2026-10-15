@@ -1,0 +1,141 @@
+{
+  "quantization": {
+    "exclude_modules": [
+      "model.llm.embed",
+      "model.llm.layers.0.attn.k_sconv",
+      "model.llm.layers.0.attn.rel_logits_proj.proj",
+      "model.llm.layers.0.attn.v_sconv",
+      "model.llm.layers.0.attn.wk_dv",
+      "model.llm.layers.0.attn.wo_ud",
+      "model.llm.layers.0.attn.wq_du",
+      "model.llm.layers.0.attn.wr_du",
+      "model.llm.layers.0.attn.wv_dv",
+      "model.llm.layers.0.attn_sconv",
+      "model.llm.layers.0.mlp.w13_dn",
+      "model.llm.layers.0.mlp.w2_md",
+      "model.llm.layers.0.mlp_sconv",
+      "model.llm.layers.1.attn.k_sconv",
+      "model.llm.layers.1.attn.rel_logits_proj.proj",
+      "model.llm.layers.1.attn.v_sconv",
+      "model.llm.layers.1.attn.wk_dv",
+      "model.llm.layers.1.attn.wo_ud",
+      "model.llm.layers.1.attn.wq_du",
+      "model.llm.layers.1.attn.wr_du",
+      "model.llm.layers.1.attn.wv_dv",
+      "model.llm.layers.1.attn_sconv",
+      "model.llm.layers.1.mlp.experts.w13_weight",
+      "model.llm.layers.1.mlp.experts.w2_weight",
+      "model.llm.layers.1.mlp.gate",
+      "model.llm.layers.1.mlp.shared_experts.shared_w13_weight",
+      "model.llm.layers.1.mlp.shared_experts.shared_w2_weight",
+      "model.llm.layers.1.mlp_sconv",
+      "model.llm.layers.2.attn.k_sconv",
+      "model.llm.layers.2.attn.rel_logits_proj.proj",
+      "model.llm.layers.2.attn.v_sconv",
+      "model.llm.layers.2.attn.wk_dv",
+      "model.llm.layers.2.attn.wo_ud",
+      "model.llm.layers.2.attn.wq_du",
+      "model.llm.layers.2.attn.wr_du",
+      "model.llm.layers.2.attn.wv_dv",
+      "model.llm.layers.2.attn_sconv",
+      "model.llm.layers.2.mlp.gate",
+      "model.llm.layers.2.mlp.shared_experts.shared_w13_weight",
+      "model.llm.layers.2.mlp.shared_experts.shared_w2_weight",
+      "model.llm.layers.2.mlp_sconv",
+      "model.llm.unembed"
+    ],
+    "group_size": 16,
+    "kv_cache_quant_algo": "none",
+    "modelopt_quant_config": {
+      "algorithm": "max",
+      "quant_cfg": {
+        "*block_sparse_moe.gate*": {
+          "enable": false
+        },
+        "*input_quantizer": {
+          "axis": null,
+          "block_sizes": {
+            "-1": 16,
+            "scale_bits": [
+              4,
+              3
+            ],
+            "type": "dynamic"
+          },
+          "enable": true,
+          "num_bits": [
+            2,
+            1
+          ]
+        },
+        "*linear_attn.conv1d*": {
+          "enable": false
+        },
+        "*lm_head*": {
+          "enable": false
+        },
+        "*mixer.conv1d*": {
+          "enable": false
+        },
+        "*mlp.gate.*": {
+          "enable": false
+        },
+        "*mlp.shared_expert_gate.*": {
+          "enable": false
+        },
+        "*output_layer*": {
+          "enable": false
+        },
+        "*proj_out.*": {
+          "enable": false
+        },
+        "*router*": {
+          "enable": false
+        },
+        "*weight_quantizer": {
+          "axis": null,
+          "block_sizes": {
+            "-1": 16,
+            "scale_bits": [
+              4,
+              3
+            ],
+            "type": "dynamic"
+          },
+          "enable": true,
+          "num_bits": [
+            2,
+            1
+          ]
+        },
+        "default": {
+          "enable": false
+        },
+        "nn.BatchNorm1d": {
+          "*": {
+            "enable": false
+          }
+        },
+        "nn.BatchNorm2d": {
+          "*": {
+            "enable": false
+          }
+        },
+        "nn.BatchNorm3d": {
+          "*": {
+            "enable": false
+          }
+        },
+        "nn.LeakyReLU": {
+          "*": {
+            "enable": false
+          }
+        },
+        "output.*": {
+          "enable": false
+        }
+      }
+    },
+    "quant_algo": "NVFP4"
+  }
+}

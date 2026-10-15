@@ -97,6 +97,31 @@ for `tests/fixtures/primitives.json`; the fixture records their source hash and
 PyTorch version. See [PRIMITIVES.md](PRIMITIVES.md) for numerical tolerances and
 the explicit portable top-k tie policy.
 
+Phase C's `tools/inkling_model_ref.py` extends the source registry with four
+Transformers files at the same commit. These observed SHA-256 identities are
+checked before explicit regeneration uses the source bytes.
+
+| File | SHA-256 |
+|---|---|
+| [configuration_inkling.py](https://github.com/huggingface/transformers/blob/c587bc884db2c2e31fc2b8102314656b17aa07b1/src/transformers/models/inkling/configuration_inkling.py) | `ec8c7edf135c514103213829701f0151e339ce5f92f556ef57995de064ea0e91` |
+| [conversion_mapping.py](https://github.com/huggingface/transformers/blob/c587bc884db2c2e31fc2b8102314656b17aa07b1/src/transformers/conversion_mapping.py) | `67deef358d7d09df8eb579ef5b7e79f6a4e42137f4d1cdba63891bfb85c3b187` |
+| [core_model_loading.py](https://github.com/huggingface/transformers/blob/c587bc884db2c2e31fc2b8102314656b17aa07b1/src/transformers/core_model_loading.py) | `c5b6bcdb6401a3cfdf825bc979d41ac3e7e075e09459021363dce5e68c54de22` |
+| [masking_utils.py](https://github.com/huggingface/transformers/blob/c587bc884db2c2e31fc2b8102314656b17aa07b1/src/transformers/masking_utils.py) | `50a737f63d8c778a5597fa34ac139049af921f44958205e3e1c29fe2bae77254` |
+
+The conversion sources prove native even-gate/odd-up rows for dense, routed, and
+shared `w13`. The mask source fixes local attention to distances below 512. The
+oracle maps checkpoint dense and expert widths explicitly because the pinned HF
+configuration defaults do not directly preserve both checkpoint fields.
+
+The model oracle runs original CPU numerical bodies with BF16 values widened to
+float32 and native NVFP4 tensors decoded through the pinned NVIDIA reference.
+It does not claim fused BF16 backend parity. The miniature manifest records
+fixture and generator identities. Real `ranges.json` manifests record actual
+payload hashes, source pins, input/output hashes, and selected expert provenance.
+See [TEXT.md](TEXT.md) for reproducible checks and the limits of isolated real
+layers 0, 2, and 5. [The validation record](PHASE_C_VALIDATION.md) records the
+completed Phase C checks and numerical errors.
+
 ## Serving implementation references
 
 ### SGLang

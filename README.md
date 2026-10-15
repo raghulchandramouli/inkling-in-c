@@ -1,5 +1,9 @@
 # inkling-in-c
 
+The scalar C99 text runtime accepts a complete prefix of raw token IDs and returns
+float32 logits for every position. It binds the native pinned checkpoint without
+a conversion step. See [the text runtime contract and reproducible checks](docs/TEXT.md).
+
 Implementation references and immutable upstream revisions are recorded in
 [`docs/SOURCES.md`](docs/SOURCES.md).
 
@@ -72,3 +76,24 @@ weight hashes or the payload values in `.original_shape`. Metadata-only mode use
 the pinned original shard lengths and clearly labels its limited result. Tests
 also exercise actual-file mode with sparse local shards, without downloading or
 allocating weights. The legacy `bin/inkling config.json` command is unchanged.
+
+## Run a raw token prefix
+
+```sh
+make
+bin/inkling MODEL_DIR --ids 1,2,3 --dump-logits logits.json
+```
+
+`MODEL_DIR` must contain the complete pinned text checkpoint shards and metadata.
+IDs address the 201024 stored embedding rows. The JSON contains `tokens`, `vocab`,
+and a flat token-major `logits` array with 200058 columns per token. This command
+recomputes the complete prefix from position zero.
+
+Ordinary `make test` includes the committed miniature native checkpoint and
+independent CPU oracle outputs. It needs a C99 compiler, make, libm, and Python's
+standard library. Explicit oracle regeneration needs Python 3.11 and PyTorch 2.8.0.
+Real-layer validation fetches 1,259,738,686 payload bytes for isolated one-token
+layers 0, 2, and 5. These checks establish layer parity, not full-checkpoint logits.
+See [TEXT.md](docs/TEXT.md) for the API, private diagnostic probe, tolerances,
+and bounded download commands. [The Phase C validation record](docs/PHASE_C_VALIDATION.md)
+records the completed checks and their limits.

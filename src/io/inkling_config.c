@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "inkling/inkling.h"
 #include "inkling_json.h"
@@ -102,6 +103,62 @@ static int read_local_layer_ids(
     return 1;
 }
 
+static int execution_config(const InklingJsonValue *text, InklingConfig *config)
+{
+    struct { const char *key; uint32_t *out; } integers[] = {
+        {"swa_head_dim", &config->swa_head_dim},
+        {"swa_num_attention_heads", &config->swa_num_attention_heads},
+        {"swa_num_key_value_heads", &config->swa_num_key_value_heads},
+        {"dense_mlp_idx", &config->dense_mlp_idx},
+        {"unpadded_vocab_size", &config->unpadded_vocab_size},
+        {"log_scaling_n_floor", &config->log_scaling_n_floor}
+    };
+    for (size_t i = 0; i < sizeof(integers) / sizeof(integers[0]); i++) {
+        uint64_t number;
+        if (!inkling_json_number_u64(inkling_json_object_get(text, integers[i].key), &number) ||
+            number > UINT32_MAX) return 0;
+        *integers[i].out = (uint32_t)number;
+    }
+    struct { const char *key; float *out; } numbers[] = {
+        {"log_scaling_alpha", &config->log_scaling_alpha},
+        {"logits_mup_width_multiplier", &config->logits_mup_width_multiplier}
+    };
+    for (size_t i = 0; i < sizeof(numbers) / sizeof(numbers[0]); i++) {
+        double number;
+        if (!inkling_json_number_double(inkling_json_object_get(text, numbers[i].key), &number) ||
+            !isfinite(number) || number < 0 || number > FLT_MAX) return 0;
+        *numbers[i].out = (float)number;
+    }
+    static const struct { const char *key; int expected; } flags[] = {
+        {"q_bias", 0}, {"o_bias", 0}, {"use_embed_norm", 1}, {"use_sconv", 1},
+        {"shared_expert_sink", 1}, {"use_gate_bias", 1}, {"norm_after_topk", 1},
+        {"use_global_scale", 1}
+    };
+    for (size_t i = 0; i < sizeof(flags) / sizeof(flags[0]); i++) {
+        int flag;
+        if (!inkling_json_boolean(inkling_json_object_get(text, flags[i].key), &flag) ||
+            flag != flags[i].expected) {
+            fprintf(stderr, "unsupported text execution field: %s (expected %s)\n",
+                    flags[i].key, flags[i].expected ? "true" : "false");
+            return 0;
+        }
+    }
+    size_t length;
+    const char *activation = inkling_json_string(
+        inkling_json_object_get(text, "gate_activation"), &length);
+    const InklingJsonValue *softcap = inkling_json_object_get(text, "final_logit_softcapping");
+    return activation && length == 7 && memcmp(activation, "sigmoid", 7) == 0 &&
+        softcap && inkling_json_type(softcap) == INKLING_JSON_NULL &&
+        config->swa_head_dim && config->swa_num_attention_heads &&
+        config->swa_num_key_value_heads &&
+        config->swa_num_attention_heads % config->swa_num_key_value_heads == 0 &&
+        (uint64_t)config->swa_num_attention_heads * config->swa_head_dim <= SIZE_MAX &&
+        config->dense_mlp_idx <= config->num_hidden_layers &&
+        config->unpadded_vocab_size && config->unpadded_vocab_size <= config->vocab_size &&
+        config->log_scaling_n_floor && config->logits_mup_width_multiplier > 0 &&
+        config->sconv_kernel_size == 4 && config->num_shared_experts > 0;
+}
+
 int inkling_config_load(
     const char *path,
     InklingConfig *config
@@ -170,6 +227,7 @@ int inkling_config_load(
                    &parsed.route_scale) &&
         read_local_layer_ids(text_config, &parsed);
 
+    if (success) parsed.execution_fields_valid = execution_config(text_config, &parsed);
     inkling_json_document_free(&document);
 
     if (!success || !inkling_config_is_valid(&parsed)) {

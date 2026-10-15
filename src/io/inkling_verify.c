@@ -420,7 +420,7 @@ static int report(const Census *census, int metadata_only)
     return !ferror(stdout);
 }
 
-int inkling_verify_model(const char *directory, int with_mtp, int metadata_only)
+static int verify_model(const char *directory, int with_mtp, int metadata_only, int quiet)
 {
     Census census = {0};
     InklingJsonDocument config = {0}, quant = {0};
@@ -487,11 +487,21 @@ int inkling_verify_model(const char *directory, int with_mtp, int metadata_only)
         fprintf(stderr,"verify: census/index byte mismatch: got %" PRIu64 ", expected %" PRIu64 "\n",bytes,expected);
         goto done;
     }
-    ok = report(&census,metadata_only);
+    ok = quiet ? 1 : report(&census,metadata_only);
 done:
     free(census.seen);
     inkling_index_free(&census.index);
     inkling_json_document_free(&config);
     inkling_json_document_free(&quant);
     return ok;
+}
+
+int inkling_verify_model(const char *directory, int with_mtp, int metadata_only)
+{
+    return verify_model(directory, with_mtp, metadata_only, 0);
+}
+
+int inkling_verify_model_quiet(const char *directory, int metadata_only)
+{
+    return verify_model(directory, 0, metadata_only, 1);
 }

@@ -54,7 +54,10 @@ Current files:
 
 ```text
 include/inkling/inkling.h          public types and current I/O/config API
-src/cli/inkling_run.c              config inspection and --verify-model CLI
+include/inkling/inkling_model.h    opaque model/context and full-prefix raw-ID API
+src/cli/inkling_run.c              config inspection, verification, and raw-ID logits CLI
+src/model/inkling_bind.c           native checkpoint and private range-fixture binding
+src/model/inkling_forward.c        scalar attention, dense/MoE, and full-prefix graph
 src/core/inkling_alloc.c/.h        checked size arithmetic and scalar buffer allocation
 src/core/inkling_bf16.c/.h         bit-exact BF16-to-F32 widening
 src/core/inkling_nvfp4.c/.h        validated NVFP4 layout, byte offsets, scalar block decode
@@ -483,8 +486,10 @@ For layer `L`:
 
 Relative logits use `r @ rel_logits_proj.proj` to produce a bias profile by backward
 distance. Gather distance `q_position - k_position`. Bias is zero for future positions
-and for distances outside the layer's extent. The attention mask still enforces
-causality. For global layers beyond position 128000, multiply q and position bias by:
+and for distances outside the layer's extent. The local extent is 512 and the
+global extent is 1024. A finite global bias extent does not limit attention span.
+The attention mask still enforces causality. Global layers first exceed unit tau at zero-based position 128000. Position
+127999 still has tau one. Multiply q and relative bias separately by:
 
 ```text
 tau = 1 + 0.1 * log(max(1, (position + 1) / 128000))
@@ -495,12 +500,16 @@ tau = 1 + 0.1 * log(max(1, (position + 1) / 128000))
 Layers 0 and 1 use the dense path:
 
 ```text
-gate, up = split(w13_dn * x)
+pair = w13_dn * x
+gate[j] = pair[2*j]
+up[j] = pair[2*j+1]
 y = w2_md * (SiLU(gate) * up)
 y *= global_scale
 ```
 
-Validate the packed orientation of `w13_dn` against its real shape.
+Native dense, routed, and shared `w13` matrices all store gate in even rows and
+up in odd rows. The HF logical matrices have already been deinterleaved by their
+loader. Apply even/odd indexing when reading the native checkpoint.
 
 ### MoE router and experts
 
@@ -512,23 +521,32 @@ scores = sigmoid(logits)
 selection_scores = routed_scores + correction_bias
 selected = top6(selection_scores)
 combined_logits = selected routed logits + the two shared logits
-weights = sigmoid(combined_logits) / sum(sigmoid(combined_logits))
-weights *= route_scale * gate.global_scale
+a = stable_log_sigmoid(combined_logits)
+weights = exp(a - logsumexp(a))
+weights = (weights * route_scale) * gate.global_scale
 ```
 
 Selection bias changes which routed experts win; combination weights come from the
 unbiased logits. The two shared experts participate in the same normalization and
-receive their own weights. Preserve the oracle's tie behavior and ordering.
+receive their own weights. Select by descending score and then ascending original
+expert index on ties. This local policy does not claim parity with unspecified
+PyTorch top-k tie ordering. Execute routed experts in ascending expert ID order,
+keeping each ID paired with its weight. Use a sign branch for log-sigmoid so
+extreme negative logits remain finite.
 
-For every chosen expert:
+For every expert, use even/odd rows of native `w13` as gate/up. Routed and
+shared weighting have different operation order:
 
 ```text
-gate, up = split(w13 * x)
-expert_y = w2 * (SiLU(gate) * up)
+pair = w13 * x
+activation[j] = SiLU(pair[2*j]) * pair[2*j+1]
+routed_y = (w2 * activation) * routed_weight
+shared_y = shared_w2 * (shared_activation * shared_gamma)
 ```
 
-Sum the six routed outputs and two shared outputs using their router weights. Tests
-must isolate selection, normalization, shared-expert weighting, route scale, and the
+Apply routed gamma after the down projection. Apply shared gamma to the activated
+intermediate before its down projection. Sum the six routed outputs and the two
+shared outputs. Tests must isolate selection, normalization, shared-expert weighting, route scale, and the
 gate global scale.
 
 ### Decoder order and logits
@@ -541,9 +559,11 @@ x = x + shortconv(mlp(rmsnorm(x)))
 ```
 
 Embedding lookup is followed by embed RMSNorm. After all 42 layers apply final
-RMSNorm and the untied unembed matrix. Apply the configured muP/logit scaling and
-any soft cap exactly as the pinned upstream implementation does. Do not add a final
-softmax for greedy argmax.
+RMSNorm, divide the hidden vector by `logits_mup_width_multiplier=16`, then apply
+the untied unembed matrix. Return only the first `unpadded_vocab_size=200058`
+rows. Input IDs may address all `vocab_size=201024` stored embedding rows. The
+pinned forward body has no final soft cap and the checkpoint value is null.
+Reject unsupported non-null settings. Return raw logits without final softmax.
 
 ## 9. Memory and storage design
 
@@ -707,22 +727,37 @@ and relative tolerances. Also assert discrete selections exactly.
 
 ### Gate 3: miniature end-to-end graph
 
-Generate a small model that keeps the same graph and tensor naming but reduces
-hidden size, heads, layers, experts, vocabulary, and context. Commit the fixture or
-generate it deterministically. Validate:
+Phase C validates every teacher-forced full-prefix logit for the committed
+three-layer native miniature model, plus isolated attention, MLP, and router
+cases. The fixture keeps native tensor names and storage formats while reducing
+hidden size, heads, layers, experts, and vocabulary. Validate:
 
-1. teacher-forced logits;
-2. greedy generated token IDs;
-3. full-prefix generation;
-4. incremental generation with KV and convolution caches;
-5. identical IDs under several expert-cache capacities.
+1. complete prefix logits at lengths 1, 3, and 6;
+2. dense, local MoE, and global MoE layer outputs;
+3. attention window, relative extent, and tau boundaries;
+4. biased selection, unbiased mixture, negative logits, and local tie policy;
+5. reset, retry, and independent contexts sharing one model.
+
+The remaining Gate 3 checks belong to Phase D and remain open:
+
+1. greedy generated token IDs;
+2. full-prefix generation;
+3. incremental generation with KV and convolution caches;
+4. identical IDs under several expert-cache capacities.
+
+Reproduction and numerical limits are in [TEXT.md](../docs/TEXT.md).
 
 ### Gate 4: real checkpoint slices
 
-- bind and run one dense layer from real weights;
-- bind and run one local MoE layer;
-- bind and run one global MoE layer;
-- compare sampled intermediates and logits to the pinned oracle.
+- Bind original dense layer 0, local MoE layer 2, and global MoE layer 5.
+- Run each in isolation with a recorded nonzero hidden vector, one token at
+  position zero, and zero convolution prehistory.
+- Compare each complete 4096-element layer output and recorded intermediates.
+- Authenticate the 1,259,738,686 extracted payload bytes before C execution.
+
+These cases establish isolated layer parity. They do not establish full-model
+logits, multi-token real-checkpoint parity, or generation. The extraction uses a
+2 GiB aggregate budget and is separate from downloading all checkpoint shards.
 
 ### Gate 5: full text model
 
@@ -795,14 +830,34 @@ Exit: all primitive tests match the independent oracle and sanitizers pass.
 
 ### Phase C: text transformer
 
-1. Bind embedding, dense layers, attention weights, routers, experts, final norm,
-   and unembed.
-2. Implement local/global attention and relative logits.
-3. Implement dense MLP, router, shared experts, and routed experts.
-4. Implement layer/full-model forward with raw token IDs.
-5. Pass tiny-model and real-layer gates.
+1. [x] Bind embedding, dense layers, attention weights, routers, experts, final
+   norm, and unembed.
+2. [x] Implement local/global attention and relative logits.
+3. [x] Implement dense MLP, router, shared experts, and routed experts.
+4. [x] Implement layer/full-model forward with raw token IDs.
+5. [x] Pass miniature and isolated real-layer gates with final integrated evidence.
 
-Exit: one full-prefix forward pass produces matching logits.
+Completed on 2026-10-15. A fresh source export passed normal and ASan/UBSan tests
+with networking denied and no PyTorch in the test interpreter. All 17 miniature
+cases and three actual layers passed, and all seven model mutations were rejected
+by numerical comparisons. Two independent offline regenerations matched all seven
+committed fixture files exactly. Independent C and oracle reviews completed after
+three validation findings were fixed. See the
+[validation record](../docs/PHASE_C_VALIDATION.md). The public API and CLI contracts,
+fixture reproduction, and operation-specific tolerances are in
+[TEXT.md](../docs/TEXT.md). Each forward resets sequence state, starts at position
+zero, and returns token-major unpadded-vocabulary logits. Private miniature and
+range-fixture openers are diagnostic interfaces, not product CLI options.
+
+The model owns immutable bindings. Contexts own mutable activation buffers and
+1 MiB packed/BF16 read scratch. Each complete row must fit the scratch, including
+its NVFP4 scale row. All pinned rows fit. Bounded reads fail on missing bytes.
+Keep backing files unchanged and free contexts before their model. Discard output
+after any failed forward, then retry with a complete prefix after resolving the
+failure. This implementation has no incremental cache or memory-budget contract.
+
+Exit: miniature full-prefix logits and isolated real-layer outputs match the
+independent widened-float32 oracle. Full-checkpoint text parity remains Gate 5.
 
 ### Phase D: generation and bounded memory
 
