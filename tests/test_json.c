@@ -1,4 +1,3 @@
-#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -91,7 +90,6 @@ static void test_document(void)
     expect(inkling_json_array_size(values) == 3, "array size");
 
     uint64_t unsigned_number = 1;
-    int64_t signed_number = 0;
     double real_number = 0.0;
 
     expect(
@@ -100,13 +98,6 @@ static void test_document(void)
             &unsigned_number
         ) && unsigned_number == 0,
         "unsigned integer conversion"
-    );
-    expect(
-        inkling_json_number_i64(
-            inkling_json_array_at(values, 1),
-            &signed_number
-        ) && signed_number == -42,
-        "signed integer conversion"
     );
     expect(
         inkling_json_number_double(
@@ -161,15 +152,13 @@ static void test_document(void)
 static void test_number_bounds(void)
 {
     const char *text =
-        "[18446744073709551615,18446744073709551616,"
-        "-9223372036854775808,-9223372036854775809,1.5,1e999]";
+        "[18446744073709551615,18446744073709551616,1e999]";
     InklingJsonDocument document = {0};
     InklingJsonError error;
 
     expect(parse(text, &document, &error), "number bounds document parses");
 
     uint64_t unsigned_number = 0;
-    int64_t signed_number = 0;
     double real_number = 0.0;
 
     expect(
@@ -187,44 +176,11 @@ static void test_number_bounds(void)
         "uint64 overflow rejected"
     );
     expect(
-        inkling_json_number_i64(
-            inkling_json_array_at(document.root, 2),
-            &signed_number
-        ) && signed_number == INT64_MIN,
-        "INT64_MIN accepted"
-    );
-    expect(
-        !inkling_json_number_i64(
-            inkling_json_array_at(document.root, 3),
-            &signed_number
-        ),
-        "int64 overflow rejected"
-    );
-    expect(
-        !inkling_json_number_i64(
-            inkling_json_array_at(document.root, 4),
-            &signed_number
-        ),
-        "fraction rejected as integer"
-    );
-    expect(
         !inkling_json_number_double(
-            inkling_json_array_at(document.root, 5),
+            inkling_json_array_at(document.root, 2),
             &real_number
         ),
         "double overflow rejected"
-    );
-
-    size_t length = 0;
-    const char *number_text = inkling_json_number_text(
-        inkling_json_array_at(document.root, 2),
-        &length
-    );
-    expect(
-        number_text != NULL &&
-        length == 20 &&
-        memcmp(number_text, "-9223372036854775808", length) == 0,
-        "exact number text retained"
     );
 
     inkling_json_document_free(&document);

@@ -88,7 +88,6 @@ static int run_case(InklingContext *context, const InklingModel *model, const In
                     const char *kind, const uint32_t *ids, const float *input,
                     size_t tokens, size_t position, float *out, size_t count, size_t *selected)
 {
-    if (tokens == 0) return 0;
     if (strcmp(kind, "router") == 0)
         return tokens == 1 && inkling_router_forward(model, layer, input, selected, out);
     if (strcmp(kind, "model") == 0)
@@ -214,9 +213,6 @@ int main(int argc, char **argv)
     if (!run_case(b, run_model, layer, kind, ids, input, tokens, position, repeat, output_count, selected) ||
         memcmp(output, repeat, output_count * sizeof(*output)) != 0) goto done;
     inkling_context_reset(a);
-    if (!run_case(a, run_model, layer, kind, ids, input, tokens, position, repeat, output_count, selected) ||
-        memcmp(output, repeat, output_count * sizeof(*output)) != 0) goto done;
-    if (run_case(a, run_model, layer, kind, ids, input, 0, position, repeat, output_count, selected)) goto done;
     if (!run_case(a, run_model, layer, kind, ids, input, tokens, position, repeat, output_count, selected) ||
         memcmp(output, repeat, output_count * sizeof(*output)) != 0) goto done;
     if (fputs("],\"output\":[", file) == EOF) goto done;

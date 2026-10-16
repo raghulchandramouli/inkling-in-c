@@ -22,7 +22,6 @@ typedef struct {
 } InklingJsonDocument;
 
 typedef struct {
-    size_t offset;
     size_t line;
     size_t column;
     char message[INKLING_JSON_ERROR_MESSAGE_SIZE];
@@ -60,19 +59,9 @@ int inkling_json_number_u64(
     uint64_t *result
 );
 
-int inkling_json_number_i64(
-    const InklingJsonValue *value,
-    int64_t *result
-);
-
 int inkling_json_number_double(
     const InklingJsonValue *value,
     double *result
-);
-
-const char *inkling_json_number_text(
-    const InklingJsonValue *value,
-    size_t *length
 );
 
 const char *inkling_json_string(

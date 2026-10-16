@@ -53,20 +53,11 @@ NVFP4 documentation that describes 2D weight scaling as a default option.
 Phase B2's real payload ranges, source hashes, independent reference results and
 tool versions are recorded in `tests/fixtures/nvfp4.json`. See
 [`NVFP4.md`](NVFP4.md) for the established layout, reference zero-sign difference,
-and bounded regeneration procedure. The source revisions below are unchanged.
+and bounded regeneration procedure.
 
-`tools/inkling_ref.py` binds each reference to its immutable revision and expected
-raw SHA-256 before executing selected CPU functions. The hashes match the original
-B2/B3 fixture provenance. Cached source bytes are verified on every regeneration;
-only explicit regeneration may fetch missing sources. `make oracle-fixtures`
-regenerates from recorded checkpoint bytes, and `--offline` requires the verified
-source cache. See [PRIMITIVES.md](PRIMITIVES.md#reproduce-and-run).
-
-`tests/fixtures/oracle-manifest.json` records SHA-256 identities for both numerical
-fixtures and their local generator source dependencies. Ordinary tests audit this
-manifest and primitive provenance using only the Python standard library. It
-records consistency of the checked-in artifacts; it does not substitute for
-independent reference execution or authenticate new checkpoint bytes.
+`tools/inkling_ref.py` verifies each reference against its immutable revision and
+raw SHA-256 before executing it; see [PRIMITIVES.md](PRIMITIVES.md#reproduce-and-run)
+for the cache and offline policy.
 
 ## Architecture reference
 
@@ -113,14 +104,9 @@ shared `w13`. The mask source fixes local attention to distances below 512. The
 oracle maps checkpoint dense and expert widths explicitly because the pinned HF
 configuration defaults do not directly preserve both checkpoint fields.
 
-The model oracle runs original CPU numerical bodies with BF16 values widened to
-float32 and native NVFP4 tensors decoded through the pinned NVIDIA reference.
-It does not claim fused BF16 backend parity. The miniature manifest records
-fixture and generator identities. Real `ranges.json` manifests record actual
-payload hashes, source pins, input/output hashes, and selected expert provenance.
-See [TEXT.md](TEXT.md) for reproducible checks and the limits of isolated real
-layers 0, 2, and 5. [The validation record](PHASE_C_VALIDATION.md) records the
-completed Phase C checks and numerical errors.
+See [TEXT.md](TEXT.md) for the oracle contract, reproducible checks and the limits
+of isolated real layers 0, 2, and 5. [The validation record](PHASE_C_VALIDATION.md)
+records the completed Phase C checks and numerical errors.
 
 ## Serving implementation references
 

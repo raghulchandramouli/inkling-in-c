@@ -56,7 +56,7 @@ int inkling_nvfp4_matvec(const InklingNvfp4Layout *layout, size_t expert,
     if (!inkling_nvfp4_layout(shape, packed_shape, scale_shape, shape[0], &checked) ||
         checked.packed_bytes != layout->packed_bytes ||
         checked.scale_bytes != layout->scale_bytes ||
-        checked.scale2_bytes != layout->scale2_bytes || expert >= checked.experts ||
+        checked.scale2_bytes != layout->scale2_bytes ||
         !fits(checked.packed_bytes, 1) ||
         !fits(checked.columns, sizeof(*x)) || packed_bytes < checked.packed_bytes ||
         scale_bytes < checked.scale_bytes || scale2_count < checked.experts ||

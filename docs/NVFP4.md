@@ -115,20 +115,10 @@ Padded layouts are explicitly rejected.
 ## Regeneration and offline checks
 
 Ordinary `make test` and `make test-sanitize` use committed bytes and Python's
-standard library. Consolidated regeneration uses recorded B2 ranges and verified
-pinned CPU functions, with no checkpoint download:
-
-```sh
-make oracle-fixtures ORACLE_PYTHON=.context/nvfp4-venv/bin/python
-make oracle-fixtures ORACLE_PYTHON=.context/nvfp4-venv/bin/python \
-  ORACLE_FLAGS="--offline --output-dir .context/oracle-review"
-```
-
-See [primitive regeneration](PRIMITIVES.md#reproduce-and-run) for the recorded
-Python/PyTorch environment, source cache policy and identity manifest. B2 sample
-bytes, extraction offsets, checksums, source revisions and expected output bits
-are preserved. The shared reference loader verifies immutable raw-source hashes
-before executing its selected original CPU functions.
+standard library. Consolidated regeneration (`make oracle-fixtures`) reuses the
+recorded B2 ranges and verified pinned CPU functions, with no checkpoint download;
+see [primitive regeneration](PRIMITIVES.md#reproduce-and-run) for commands, the
+recorded Python/PyTorch environment, source cache policy and identity manifest.
 
 Refreshing checkpoint samples is a separate, explicit bounded network operation:
 

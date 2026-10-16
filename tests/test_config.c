@@ -374,8 +374,6 @@ static void test_local_layer_lists(void)
         int loaded = load_temp_config(json, &config);
         expect(loaded, "valid explicit local-layer layout accepted");
         if (loaded) {
-            expect(config.num_local_layers == cases[index].count,
-                   "explicit local-layer count preserved");
             expect(config.num_local_layers == cases[index].count &&
                    (cases[index].count == 0 ||
                     memcmp(config.local_layer_ids, cases[index].ids,

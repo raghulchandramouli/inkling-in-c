@@ -30,21 +30,6 @@ features; it must not pretend they work before their gates pass.
 
 ## 2. Sources of truth
 
-Use sources in this order:
-
-1. The exact files in the pinned Hugging Face revision of
-   `thinkingmachines/Inkling-Small-NVFP4`.
-2. Hugging Face Transformers' `configuration_inkling.py` and
-   `modeling_inkling.py` at a recorded commit.
-3. SGLang and vLLM Inkling implementations at recorded commits, especially for
-   checkpoint tensor layout and serving behavior.
-4. NVIDIA's NVFP4 documentation for E2M1 encoding and two-level scaling.
-5. `kimi-k3-in-c` for repository structure, streaming, cache, CLI, and validation
-   patterns. Do not copy its MXFP4 decoder into this project.
-
-Record all upstream commit hashes in `docs/SOURCES.md` before numerical kernel
-work begins. A moving `main` branch is not a reproducible oracle.
-
 Exact checkpoint and upstream revisions, immutable file links, source precedence,
 and the pin-update procedure are recorded in `docs/SOURCES.md`.
 
@@ -96,15 +81,11 @@ an opaque external runtime.
 
 ### Pinned metadata fixtures
 
-`tests/fixtures/checkpoint/` is generated from revision
-`b6a99534467840620d411e4cd4ad5819b2610d9c` of the Small NVFP4 checkpoint. It
-contains the config, quantization config, index, and metadata-only headers for all
-9 model shards plus the separate `mtp.safetensors` file. The index contains 1,360
-tensors and reports `total_size == 170733074592` including MTP. The nine model
-shards contain 166269249680 payload bytes; MTP contains 4463824912 bytes. Tests
-validate and resolve every tensor against its pinned header, including scales
-and original-shape auxiliaries across shards. Regenerate the fixtures with
-`tools/fetch_checkpoint_metadata.py`; ordinary tests remain network-free.
+`tests/fixtures/checkpoint/` holds the pinned config, quantization config, index,
+and all ten SafeTensors headers, without payloads. Revision, tensor counts, and
+byte totals are in [SOURCES.md](../docs/SOURCES.md#checkpoint); regeneration is in
+[its README](../tests/fixtures/checkpoint/README.md). Tests resolve every tensor,
+including cross-shard auxiliaries, and remain network-free.
 
 ## 4. Target model facts
 
@@ -263,20 +244,7 @@ fields are fatal configuration errors.
 `InklingIndex` is the tensor catalogue and uses an open-addressed FNV-1a hash
 table with linear probing and a load factor no greater than 0.5. Names are owned
 inline, so lookup pointers remain valid until the catalogue is freed. Each
-`InklingTensor` stores:
-
-```c
-typedef struct {
-    char name[INKLING_INDEX_MAX_NAME_LENGTH];
-    char shard[INKLING_INDEX_MAX_SHARD_LENGTH];
-    InklingDataType dtype;
-    uint32_t rank;
-    uint64_t shape[INKLING_MAX_TENSOR_RANK];
-    uint64_t data_offset;
-    uint64_t byte_length;
-    uint32_t shard_id;
-} InklingTensor;
-```
+`InklingTensor` is declared in [`include/inkling/inkling.h`](../include/inkling/inkling.h).
 
 All additions and multiplications used to compute offsets, element counts, and byte
 sizes require checked overflow. SafeTensors offsets are relative to the data section,
@@ -292,7 +260,7 @@ The full pinned census contains BF16 (968 tensors, 2 bytes per stored element),
 F32 (158, 4 bytes), I64 (78, 8 bytes), F8_E4M3 (78, 1 byte), and U8 (78, 1 byte).
 U8 shapes describe stored bytes, each containing two FP4 nibbles for quantized
 weights. I64 `original_shape` describes the logical unpacked dimensions. No dtype
-is inferred from a tensor name, and numerical FP4/FP8 decoding remains Phase B.
+is inferred from a tensor name.
 
 ### Model and execution context
 
@@ -304,19 +272,7 @@ typedef struct InklingContext InklingContext;   /* KV cache, conv state, scratch
 typedef struct InklingSampler InklingSampler;   /* RNG and sampling parameters */
 ```
 
-Required lifecycle:
-
-```c
-int  inkling_model_open(InklingModel **out, const char *model_dir,
-                        const InklingModelOptions *options);
-void inkling_model_close(InklingModel *model);
-int  inkling_context_create(InklingContext **out, const InklingModel *model,
-                            const InklingContextOptions *options);
-void inkling_context_reset(InklingContext *context);
-void inkling_context_free(InklingContext *context);
-int  inkling_forward(...);
-int  inkling_generate(...);
-```
+The implemented model/context lifecycle and exact signatures are in [TEXT.md](../docs/TEXT.md#public-api); `inkling_generate` remains Phase D.
 
 No process-global mutable model state. Two contexts must be able to share one model.
 
@@ -412,16 +368,11 @@ w[i] = float32(E2M1[nibble(i)] * combined_scale)
 ```
 
 Phase B2 establishes the exported layout using 18 real samples (2,424 checkpoint
-bytes) and pinned Transformer Engine/Model Optimizer CPU references. Details and
-regeneration instructions are in `docs/NVFP4.md`. Packing is low nibble first;
-scales are contiguous E4M3FN with no padding, one per final-axis group of 16;
-`scale2` multiplies per expert. `w13` rows interleave gate/up. `.input_amax` is an
-activation statistic, not a weight scale. The scalar API validates stored shapes,
-computes checked byte offsets across separately indexed tensors, and reconstructs
-one block without allocation. Tests cover every E2M1/E4M3FN code and compare all
-576 sampled outputs bit-for-bit. Transformer Engine preserves negative zero where
-Model Optimizer canonicalizes it; the C contract follows Transformer Engine and
-the real samples also match Model Optimizer numerically.
+bytes) and pinned Transformer Engine/Model Optimizer CPU references. Details, the
+signed-zero policy, tests and regeneration instructions are in `docs/NVFP4.md`.
+Packing is low nibble first; scales are contiguous E4M3FN with no padding, one per
+final-axis group of 16; `scale2` multiplies per expert. `w13` rows interleave
+gate/up. `.input_amax` is an activation statistic, not a weight scale.
 
 Implement in two stages:
 
@@ -448,10 +399,7 @@ normalization is per head. Because q and k are normalized, attention scaling is
 Phase B3 implements these scalar operations in `src/core/inkling_math.c`. See
 `docs/PRIMITIVES.md` for capacities, aliasing, error behavior, deterministic ties,
 and per-operation tolerances against 43 independently generated cases. Matvec
-accumulates in float32; norm and softmax use wider reductions. B4 consolidates
-regeneration, source verification, local code identity, offline primitive audits
-and mutation acceptance. Phase B and Gate 1 passed integrated acceptance on
-2026-10-14. The verification commands and environment are in `docs/PRIMITIVES.md`.
+accumulates in float32; norm and softmax use wider reductions.
 
 ### Short convolution
 
@@ -668,17 +616,7 @@ Exit codes: `0` success, `1` load/compute failure, `2` usage/config failure,
 `3` checkpoint verification failure, `4` incomplete/corrupt streamed expert read.
 No partial expert read may silently contribute zeros.
 
-Phase A verification is implemented as `inkling MODEL_DIR --verify-model`.
-It requires the pinned index (including all MTP entries) and config/quantization
-metadata, validates all required families, and prints a sorted, mutually
-exclusive tensor/byte census and tensor listing. An absent MTP file is explicitly
-skipped unless `--with-mtp` is set; a present file is always validated. Unknown
-families are rejected. Normal mode checks actual shard lengths; the explicit
-`--metadata-only` mode reads `headers/` with the pinned original payload extents
-and does not claim to validate full files. Identity is the pinned metadata
-contract, not cryptographic weight authentication; no tensor payload is read,
-including the values inside `.original_shape`. Byte ranges are relative to the
-start of the shard payload. The original config-only CLI remains available.
+Phase A verification is implemented as `inkling MODEL_DIR --verify-model`; its contract is in [README.md](../README.md#verify-a-local-checkpoint).
 
 ## 12. Validation ladder
 
@@ -704,13 +642,7 @@ order; do not optimize a layer whose gate is red.
 Use generated random cases plus at least one fixture cut from real Small checkpoint
 bytes.
 
-Completed on 2026-10-14. A fresh tracked-file checkout passed the complete normal
-and ASan/UBSan suites with network access denied and without PyTorch installed in
-the ordinary-test Python. Two cache-only regenerations matched both committed
-numerical fixtures and their identity manifest byte for byte. All ten deliberate
-implementation mutations failed at the required assertions. Apple Clang 21 was
-available; genuine GCC was not installed. Full attention and model parity remain
-the later gates below.
+Completed on 2026-10-14; evidence is in [PRIMITIVES.md](../docs/PRIMITIVES.md#gate-1-acceptance).
 
 ### Gate 2: isolated architecture blocks
 
@@ -837,24 +769,7 @@ Exit: all primitive tests match the independent oracle and sanitizers pass.
 4. [x] Implement layer/full-model forward with raw token IDs.
 5. [x] Pass miniature and isolated real-layer gates with final integrated evidence.
 
-Completed on 2026-10-15. A fresh source export passed normal and ASan/UBSan tests
-with networking denied and no PyTorch in the test interpreter. All 17 miniature
-cases and three actual layers passed, and all seven model mutations were rejected
-by numerical comparisons. Two independent offline regenerations matched all seven
-committed fixture files exactly. Independent C and oracle reviews completed after
-three validation findings were fixed. See the
-[validation record](../docs/PHASE_C_VALIDATION.md). The public API and CLI contracts,
-fixture reproduction, and operation-specific tolerances are in
-[TEXT.md](../docs/TEXT.md). Each forward resets sequence state, starts at position
-zero, and returns token-major unpadded-vocabulary logits. Private miniature and
-range-fixture openers are diagnostic interfaces, not product CLI options.
-
-The model owns immutable bindings. Contexts own mutable activation buffers and
-1 MiB packed/BF16 read scratch. Each complete row must fit the scratch, including
-its NVFP4 scale row. All pinned rows fit. Bounded reads fail on missing bytes.
-Keep backing files unchanged and free contexts before their model. Discard output
-after any failed forward, then retry with a complete prefix after resolving the
-failure. This implementation has no incremental cache or memory-budget contract.
+Completed on 2026-10-15. Evidence is in the [validation record](../docs/PHASE_C_VALIDATION.md); the public API, CLI, ownership, failure, fixture reproduction, and tolerance contracts are in [TEXT.md](../docs/TEXT.md).
 
 Exit: miniature full-prefix logits and isolated real-layer outputs match the
 independent widened-float32 oracle. Full-checkpoint text parity remains Gate 5.

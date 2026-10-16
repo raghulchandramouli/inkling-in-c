@@ -67,14 +67,7 @@ experts `[67,30,69,120,25,146]`; layer 5 selects `[21,20,219,110,58,145]`.
 The runs compare the selected experts and both shared experts. They do not execute
 unselected real experts or propagate one real layer into another.
 
-Reproduce after the explicit extraction described in the runtime guide:
-
-```sh
-python3 -B tools/check_model.py --probe bin/model_probe \
-  --real weights/c16-real/layer-0 --real weights/c16-real/layer-2 \
-  --real weights/c16-real/layer-5 --metadata tests/fixtures/checkpoint \
-  --report .context/real-model-report.json
-```
+Reproduce with the real-layer commands in the [runtime guide](TEXT.md#fetch-and-check-bounded-real-layers).
 
 ## Review and corrections
 
@@ -103,11 +96,7 @@ available Codex model, so diversity across model families remained limited.
 This evidence establishes widened-float32 scalar graph parity for the committed
 miniature model and isolated original layers. It does not establish fused BF16
 backend parity, full-checkpoint logits, real long-history attention, or generation.
-The near-floor comparisons cannot resolve the first tau increment at their
-tolerances. Source inspection establishes that exact formula, and the farther
-case rejects either omitted scaling operation.
 
 Phase D still owns incremental caches, generation, memory budgets, and cache
 parity. Phase E owns tokenizer and chat support. Phase F owns multimodal and MTP
-execution. The production opener verifies metadata and byte bounds, not payload
-hashes. Context read scratch is limited to 1 MiB and every supported row fits it.
+execution.

@@ -12,7 +12,7 @@ from fetch_checkpoint_metadata import sha256, write_atomic
 from inkling_ref import SOURCE_DIR, reference_oracles
 from inkling_model_ref import (MODEL_SOURCE_PINS, LAYER_MAPPING, load_reference,
     checkpoint_config, causal_masks, storage_tensor, decode_nvfp4, build_model, capture)
-from fetch_model_layers import json_write, trace_arrays, tolerances
+from fetch_model_layers import GENERATOR_FILES, json_write, trace_arrays, tolerances
 
 SEED = 932184
 
@@ -175,7 +175,7 @@ def generate(output, metadata, source_dir, *, offline=False):
             x[:, -2:] = layer.self_attn.r_proj.weight[:config.d_rel].sum(dim=0) * 8
         records, handles = capture(layer, torch) if tokens < 3 else ({}, [])
         attention_inputs = {}
-        heads = layer.self_attn.num_heads if hasattr(layer.self_attn, "num_heads") else (config.swa_num_attention_heads if layer_id in config.local_layer_ids else config.num_attention_heads)
+        heads = layer.self_attn.num_heads
         coordinates = [(0, 0, 1), (tokens - 2, 0, 0), (tokens - 1, 0, 0),
             (tokens - 1, 0, 1), (tokens - 1, 0, tokens - 1),
             (tokens - 2, heads - 1, 0), (tokens - 1, heads - 1, 0), (tokens - 1, heads - 1, 1)]
@@ -230,7 +230,7 @@ def generate(output, metadata, source_dir, *, offline=False):
         cases=cases)
     json_write(output / "oracle.json", oracle)
     files = ["config.json", "hf_quant_config.json", "model.safetensors.index.json", "model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors", "oracle.json"]
-    generators = ["tools/inkling_model_ref.py", "tools/emit_model_fixtures.py", "tools/fetch_model_layers.py", "tools/inkling_ref.py", "tools/fetch_checkpoint_metadata.py", "tools/fetch_nvfp4_fixture.py"]
+    generators = ["tools/emit_model_fixtures.py", *GENERATOR_FILES]
     json_write(output / "manifest.json", dict(schema=1, files={name: sha256((output / name).read_bytes()) for name in files}, generators={name: sha256(Path(name).read_bytes()) for name in generators}))
     print(f"wrote {output}: {len(tensors)} native tensors, {len(cases)} numerical cases")
 

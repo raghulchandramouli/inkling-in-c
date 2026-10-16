@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import struct
 import time
 from pathlib import Path
@@ -38,7 +37,6 @@ def tolerances(*, real=False):
 
 CHUNK = 8 * 1024 * 1024
 BUDGET = 2 * 1024 * 1024 * 1024
-SIZES = {"BF16": 2, "F32": 4, "U8": 1, "F8_E4M3": 1, "I64": 8}
 
 
 def json_write(path, value):

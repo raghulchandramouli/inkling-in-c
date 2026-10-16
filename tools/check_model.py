@@ -11,7 +11,7 @@ from pathlib import Path
 
 import fetch_nvfp4_fixture
 from fetch_checkpoint_metadata import sha256
-from fetch_model_layers import RangeStore, BUDGET, tolerances, generator_hashes
+from fetch_model_layers import GENERATOR_FILES, RangeStore, BUDGET, tolerances, generator_hashes
 from inkling_model_ref import MODEL_SOURCE_PINS, LAYER_MAPPING
 
 
@@ -30,7 +30,7 @@ def audit_tiny(directory):
     for name, digest in manifest["files"].items():
         if sha256((directory / name).read_bytes()) != digest:
             raise ValueError(f"modified miniature fixture: {name}")
-    if set(manifest["generators"]) != {"tools/inkling_model_ref.py", "tools/emit_model_fixtures.py", "tools/fetch_model_layers.py", "tools/inkling_ref.py", "tools/fetch_checkpoint_metadata.py", "tools/fetch_nvfp4_fixture.py"}:
+    if set(manifest["generators"]) != {"tools/emit_model_fixtures.py", *GENERATOR_FILES}:
         raise ValueError("incomplete miniature generator manifest")
     project = Path(__file__).resolve().parents[1]
     for name, digest in manifest["generators"].items():
@@ -117,7 +117,7 @@ def audit_cases(oracle, config):
         if kind == "layer":
             required.update(("attn_norm", "attn_conv", "post_attention", "mlp_norm", "mlp_output", "mlp_conv", "output"))
         if kind in ("mlp", "layer") and layer > 0:
-            required.update(("router_logits", "router_weights", "shared_gammas", "routed_output", "shared_output", "mlp_output"))
+            required.update(("router_logits", "router_weights", "shared_gammas", "routed_output", "shared_output"))
         if kind == "mlp":
             required.add("mlp_output")
         if kind == "attention" and tokens == 2:
@@ -303,7 +303,7 @@ def audit_real(directory, metadata):
         raise ValueError("real generator changed without regeneration")
     fetch_nvfp4_fixture.METADATA = metadata
     tensors = fetch_nvfp4_fixture.catalogue()
-    store = RangeStore(directory, manifest["layer"], tensors, offline=True)
+    RangeStore(directory, manifest["layer"], tensors, offline=True)
     total = sum(r["bytes"] for r in manifest["ranges"])
     if total > BUDGET:
         raise ValueError("invalid real payload budget")
@@ -313,7 +313,7 @@ def audit_real(directory, metadata):
         if record["offset"] < previous:
             raise ValueError("overlapping or unordered real ranges")
         seen[record["tensor"]] = record["offset"] + record["bytes"]
-    return store, oracle, total
+    return oracle, total
 
 
 def main():
@@ -331,7 +331,7 @@ def main():
         reports.extend(run_cases(args.probe, directory, directory / "oracle.json", oracle))
     total = 0
     for directory in args.real:
-        _store, oracle, payload = audit_real(directory, args.metadata)
+        oracle, payload = audit_real(directory, args.metadata)
         total += payload
         if total > BUDGET:
             raise ValueError("aggregate real payload exceeds 2 GiB")

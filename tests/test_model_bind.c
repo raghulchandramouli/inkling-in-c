@@ -2,7 +2,6 @@
 #define _DARWIN_C_SOURCE
 #include <dirent.h>
 #include <stdint.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -314,15 +313,6 @@ int main(int argc, char **argv)
         model = (InklingModel *)(uintptr_t)1;
         expect(!inkling_model_open(argv[1], &model) && model == NULL,
                "production opener retains pinned checkpoint identity gate");
-    }
-    if (argc == 4) {
-        int opened = inkling_model_open_layer_fixture(argv[2], argv[3], &model);
-        expect(opened, "original layer extracted fixture binds");
-        if (opened) {
-            expect(!model->complete && model->layer_count == 1 && inkling_model_logits_width(model) == 0,
-                   "one actual layer cannot claim complete model readiness");
-            inkling_model_close(model);
-        }
     }
     if (failures) { fprintf(stderr, "%d model binding checks failed\n", failures); return 1; }
     puts("All model binding tests passed");

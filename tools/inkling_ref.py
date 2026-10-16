@@ -33,8 +33,6 @@ SOURCE_PINS = {
               revision=revision, sha256=SOURCE_SHA256[key])
     for key, (repo, revision, path) in dict(REFERENCES, transformers=TRANSFORMERS).items()
 }
-REVISION = SOURCE_PINS["transformers"]["revision"]
-URL = SOURCE_PINS["transformers"]["url"]
 
 
 def source_bytes(key, *, source_dir=SOURCE_DIR, allow_download=True):
@@ -56,11 +54,10 @@ def source_bytes(key, *, source_dir=SOURCE_DIR, allow_download=True):
 def reference_oracles(torch, *, source_dir=SOURCE_DIR, allow_download=True):
     """Execute only the original pinned CPU functions, without GPU package imports."""
     sources, provenance = {}, {}
-    for key, (repo, revision, path) in REFERENCES.items():
-        url = f"https://raw.githubusercontent.com/{repo}/{revision}/{path}"
+    for key in REFERENCES:
         raw = source_bytes(key, source_dir=source_dir, allow_download=allow_download)
-        sources[key] = ast.parse(raw, filename=url)
-        provenance[key] = dict(url=url, revision=revision, sha256=sha256(raw))
+        sources[key] = ast.parse(raw, filename=SOURCE_PINS[key]["url"])
+        provenance[key] = dict(SOURCE_PINS[key])
     te_function = next(n for n in sources["transformer_engine"].body
                        if isinstance(n, ast.FunctionDef) and n.name == "cast_from_fp4x2")
     te_namespace = {"torch": torch}
@@ -100,5 +97,5 @@ def architecture(torch, *, source_dir=SOURCE_DIR, allow_download=True):
             if isinstance(child, (ast.ClassDef, ast.FunctionDef)):
                 child.decorator_list = []
     namespace = {"torch": torch, "nn": torch.nn, "F": torch.nn.functional}
-    exec(compile(ast.Module(body=nodes, type_ignores=[]), URL, "exec"), namespace)
-    return namespace, dict(url=URL, revision=REVISION, sha256=sha256(raw))
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), SOURCE_PINS["transformers"]["url"], "exec"), namespace)
+    return namespace, dict(SOURCE_PINS["transformers"])

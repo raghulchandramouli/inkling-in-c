@@ -9,7 +9,6 @@ typedef struct {
     InklingMatrixKind kind;
     InklingRange data, scales;
     float *scale2;
-    InklingNvfp4Layout layout;
 } InklingMatrix;
 typedef struct {
     size_t original_id, heads, kv_heads, head_dim, extent, window;

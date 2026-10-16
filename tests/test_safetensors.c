@@ -47,9 +47,6 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    uint64_t file_offset =
-        8 + header_size + tensor.data_start;
-
     unsigned char tensor_bytes[4];
 
     if (!inkling_safetensors_read_tensor_data(
@@ -85,34 +82,8 @@ int main(int argc, char **argv)
     }
 
     puts("Tensor metadata OK");
-    puts("name:         test.weight");
-    puts("dtype:        F32");
-
-    printf("rank:         %" PRIu32 "\n", tensor.rank);
-    printf("shape:        [%" PRIu64 "]\n", tensor.shape[0]);
-
-    printf(
-        "data offsets: [%" PRIu64 ", %" PRIu64 ")\n",
-        tensor.data_start,
-        tensor.data_end
-    );
-
-    printf("file offset:  %" PRIu64 "\n", file_offset);
-
-    printf(
-        "raw bytes:    %02x %02x %02x %02x\n",
-        tensor_bytes[0],
-        tensor_bytes[1],
-        tensor_bytes[2],
-        tensor_bytes[3]
-    );
-
-    printf("decoded F32:  %.1f\n", value);
 
     free(header);
-
-    header = NULL;
-    header_size = 0;
 
     if (!inkling_safetensors_read_header(
             argv[2],
@@ -150,18 +121,7 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    uint64_t payload_size =
-        tensor.data_end - tensor.data_start;
-
-    file_offset = 8 + header_size + tensor.data_start;
-
     puts("Real Inkling metadata OK");
-    puts("name:         model.llm.layers.0.attn.k_norm.weight");
-    puts("dtype:        BF16");
-
-    printf("shape:        [%" PRIu64 "]\n", tensor.shape[0]);
-    printf("payload size: %" PRIu64 " bytes\n", payload_size);
-    printf("file offset:  %" PRIu64 "\n", file_offset);
 
     free(header);
     return EXIT_SUCCESS;

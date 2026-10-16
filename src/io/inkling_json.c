@@ -65,7 +65,6 @@ static int parser_fail(JsonParser *parser, const char *message)
         return 0;
     }
 
-    parser->error->offset = parser->position;
     parser->error->line = 1;
     parser->error->column = 1;
 
@@ -526,8 +525,6 @@ static int parse_array(
             free_value(array);
             return parser_fail(parser, "expected ',' or ']' in array");
         }
-
-        skip_whitespace(parser);
     }
 }
 
@@ -897,7 +894,6 @@ int inkling_json_parse(
     document->root = NULL;
 
     if (error != NULL) {
-        error->offset = 0;
         error->line = 1;
         error->column = 1;
         error->message[0] = '\0';
@@ -921,7 +917,6 @@ int inkling_json_parse(
     InklingJsonValue *root = NULL;
 
     if (!parse_value(&parser, 0, &root)) {
-        free_value(root);
         return 0;
     }
 
@@ -991,21 +986,6 @@ int inkling_json_boolean(const InklingJsonValue *value, int *result)
     return 1;
 }
 
-const char *inkling_json_number_text(
-    const InklingJsonValue *value,
-    size_t *length
-)
-{
-    if (value == NULL || value->type != INKLING_JSON_NUMBER) {
-        return NULL;
-    }
-
-    if (length != NULL) {
-        *length = value->as.text.length;
-    }
-    return value->as.text.data;
-}
-
 int inkling_json_number_u64(
     const InklingJsonValue *value,
     uint64_t *result
@@ -1014,8 +994,7 @@ int inkling_json_number_u64(
     if (value == NULL ||
         result == NULL ||
         value->type != INKLING_JSON_NUMBER ||
-        value->as.text.length == 0 ||
-        value->as.text.data[0] == '-') {
+        value->as.text.length == 0) {
         return 0;
     }
 
@@ -1037,54 +1016,6 @@ int inkling_json_number_u64(
     }
 
     *result = number;
-    return 1;
-}
-
-int inkling_json_number_i64(
-    const InklingJsonValue *value,
-    int64_t *result
-)
-{
-    if (value == NULL ||
-        result == NULL ||
-        value->type != INKLING_JSON_NUMBER ||
-        value->as.text.length == 0) {
-        return 0;
-    }
-
-    int negative = value->as.text.data[0] == '-';
-    size_t index = negative ? 1 : 0;
-    uint64_t limit = negative
-        ? (uint64_t)INT64_MAX + 1
-        : (uint64_t)INT64_MAX;
-    uint64_t magnitude = 0;
-
-    if (index == value->as.text.length) {
-        return 0;
-    }
-
-    for (; index < value->as.text.length; index++) {
-        char character = value->as.text.data[index];
-
-        if (character < '0' || character > '9') {
-            return 0;
-        }
-
-        uint64_t digit = (uint64_t)(character - '0');
-
-        if (magnitude > (limit - digit) / 10) {
-            return 0;
-        }
-        magnitude = magnitude * 10 + digit;
-    }
-
-    if (negative) {
-        *result = magnitude == (uint64_t)INT64_MAX + 1
-            ? INT64_MIN
-            : -(int64_t)magnitude;
-    } else {
-        *result = (int64_t)magnitude;
-    }
     return 1;
 }
 

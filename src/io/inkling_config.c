@@ -46,14 +46,7 @@ static int read_float(
         return 0;
     }
 
-    float converted = (float)number;
-
-    if (!isfinite(converted)) {
-        fprintf(stderr, "missing or invalid field: %s\n", key);
-        return 0;
-    }
-
-    *output = converted;
+    *output = (float)number;
     return 1;
 }
 
@@ -126,7 +119,7 @@ static int execution_config(const InklingJsonValue *text, InklingConfig *config)
     for (size_t i = 0; i < sizeof(numbers) / sizeof(numbers[0]); i++) {
         double number;
         if (!inkling_json_number_double(inkling_json_object_get(text, numbers[i].key), &number) ||
-            !isfinite(number) || number < 0 || number > FLT_MAX) return 0;
+            number < 0 || number > FLT_MAX) return 0;
         *numbers[i].out = (float)number;
     }
     static const struct { const char *key; int expected; } flags[] = {

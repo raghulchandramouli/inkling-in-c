@@ -2,7 +2,6 @@
 #define _XOPEN_SOURCE 700
 #include <errno.h>
 #include <inttypes.h>
-#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -215,8 +214,9 @@ static int matrix(const InklingModel *model, const char *name, size_t experts,
                                                 experts, rows, columns / 16);
     snprintf(auxiliary, sizeof(auxiliary), "%s.scale2", name);
     const InklingTensor *scale2 = require_tensor(model, auxiliary, INKLING_DTYPE_F32, 1, experts, 0, 0);
+    InklingNvfp4Layout layout;
     if (!scales || !scale2 || !inkling_nvfp4_layout(shape, tensor->shape, scales->shape,
-                                                  experts, &out->layout) || !floats(model, scale2, &out->scale2)) return 0;
+                                                  experts, &layout) || !floats(model, scale2, &out->scale2)) return 0;
     for (size_t i = 0; i < experts; i++) if (out->scale2[i] <= 0) return fail("NVFP4 scale2 must be positive");
     snprintf(auxiliary, sizeof(auxiliary), "%s.input_amax", name);
     float input_amax;
@@ -590,34 +590,34 @@ static int open_model(const char *directory, const char *manifest, int productio
     int ok = path && inkling_config_load(path, &model->config);
     free(path);
     if (!ok) { fail("cannot load a valid text configuration"); goto done; }
-    if (!model->config.execution_fields_valid) { fail("missing or unsupported text execution configuration"); ok = 0; goto done; }
+    if (!model->config.execution_fields_valid) { fail("missing or unsupported text execution configuration"); goto done; }
     path = join(directory, "model.safetensors.index.json");
     ok = path && inkling_index_load(path, &model->index);
     free(path);
-    if (!ok || !load_shards(model, directory, model->extracted) || !quantization(model, directory)) { ok = 0; goto done; }
+    if (!ok || !load_shards(model, directory, model->extracted) || !quantization(model, directory)) goto done;
     size_t layer = 0;
-    if (manifest && !load_manifest(model, manifest, &layer)) { ok = 0; goto done; }
+    if (manifest && !load_manifest(model, manifest, &layer)) goto done;
     size_t layer_count = manifest ? 1 : model->config.num_hidden_layers;
     void *allocation = NULL;
-    if (!inkling_alloc_array(layer_count, sizeof(*model->layers), &allocation)) { fail("cannot allocate layers"); ok = 0; goto done; }
+    if (!inkling_alloc_array(layer_count, sizeof(*model->layers), &allocation)) { fail("cannot allocate layers"); goto done; }
     model->layers = allocation;
     model->layer_count = layer_count;
     memset(model->layers, 0, model->layer_count * sizeof(*model->layers));
     for (size_t i = 0; i < model->layer_count; i++)
-        if (!bind_layer(model, &model->layers[i], manifest ? layer : i)) { ok = 0; goto done; }
+        if (!bind_layer(model, &model->layers[i], manifest ? layer : i)) goto done;
     if (!manifest) {
         size_t h = model->config.hidden_size, vocab = model->config.vocab_size;
         if (!matrix(model, "model.llm.embed.weight", 1, vocab, h, 2, 0, &model->embed) ||
             !matrix(model, "model.llm.unembed.weight", 1, vocab, h, 2, 0, &model->unembed) ||
             !vector(model, "model.llm.embed_norm.weight", INKLING_DTYPE_BF16, 1, h, 0, 0, &model->embed_norm) ||
-            !vector(model, "model.llm.norm.weight", INKLING_DTYPE_BF16, 1, h, 0, 0, &model->final_norm)) { ok = 0; goto done; }
+            !vector(model, "model.llm.norm.weight", INKLING_DTYPE_BF16, 1, h, 0, 0, &model->final_norm)) goto done;
         model->complete = 1;
     }
     *out = model;
     return 1;
 done:
     inkling_model_close(model);
-    return ok ? fail("cannot bind model") : 0;
+    return 0;
 }
 
 int inkling_model_open(const char *directory, InklingModel **out)

@@ -121,33 +121,20 @@ print("NVFP4 fixture: provenance, sample coverage and guarded regeneration check
 if "--with-oracle" in sys.argv:
     import torch
     te_decode, modelopt_class, references = generator.reference_oracles(torch)
-    records = {}
-    for projection in fixture["projections"]:
-        ranges = [projection[key] for key in ("original_shape", "scale2", "input_amax")]
-        ranges += [sample[key] for sample in projection["samples"] for key in ("packed", "scales")]
-        for record in ranges:
-            records[record["tensor"], record["tensor_offset"]] = record
-
-    def recorded_range(tensors, name, offset=0, length=None):
-        record = records[name, offset]
-        if length is not None:
-            assert length == record["length"]
-        return record
 
     class DisagreeingOracle(modelopt_class):
         def dequantize(self, *args, **kwargs):
             return super().dequantize(*args, **kwargs) + 1.0
 
-    with tempfile.TemporaryDirectory() as temporary, \
-         patch.object(generator, "fetch_range", side_effect=recorded_range):
+    with tempfile.TemporaryDirectory() as temporary:
         output = Path(temporary) / "fixture.json"
         with patch.object(generator, "reference_oracles", return_value=(te_decode, modelopt_class, references)):
-            generator.generate(output)
+            generator.generate(output, recorded=generator.OUTPUT)
         regenerated = json.loads(output.read_text())
         assert {k: v for k, v in regenerated.items() if k != "tools"} == {
             k: v for k, v in fixture.items() if k != "tools"}
         previous = output.read_bytes()
         with patch.object(generator, "reference_oracles", return_value=(te_decode, DisagreeingOracle, references)):
-            rejects(lambda: generator.generate(output))
+            rejects(lambda: generator.generate(output, recorded=generator.OUTPUT))
         assert output.read_bytes() == previous
     print("NVFP4 regeneration: exact oracle reproduction and disagreement rejection OK")

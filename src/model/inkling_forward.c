@@ -148,7 +148,6 @@ int inkling_context_create(const InklingModel *model, size_t max_tokens,
     }
     context->selected = selected;
     context->weights = weights;
-    inkling_context_reset(context);
     *out = context;
     return 1;
 }
@@ -493,7 +492,6 @@ int inkling_forward(InklingContext *context, const uint32_t *ids, size_t tokens,
                     float *logits, size_t logits_count)
 {
     if (context == NULL) return failure("missing context");
-    inkling_context_reset(context);
     const InklingModel *model = context->model;
     const InklingConfig *config = &model->config;
     size_t count, bytes, id_bytes;

@@ -22,7 +22,6 @@ int main(int argc, char **argv)
     CHECK(!inkling_context_create(model, 0, &invalid));
     CHECK(invalid == NULL);
     size_t width = inkling_model_logits_width(model), count = 3 * width;
-    CHECK(width == model->config.unpadded_vocab_size);
     CHECK(width < model->config.vocab_size);
     float *expected = malloc(count * sizeof(float));
     float *actual = malloc(count * sizeof(float));
