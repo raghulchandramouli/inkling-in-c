@@ -861,11 +861,19 @@ independent widened-float32 oracle. Full-checkpoint text parity remains Gate 5.
 
 ### Phase D: generation and bounded memory
 
-1. Add greedy decode, then configurable sampling.
+1. [x] Add greedy decode, then configurable sampling.
 2. Add local/global KV caches and four convolution histories per layer.
 3. Add packed expert LRU and trace reporting.
 4. Add trunk streaming/packing and low-memory embedding/unembed paths.
 5. Prove identical greedy IDs across incremental/full and memory presets.
+
+D1 completed on 2026-10-18 with raw-ID complete-prefix generation, greedy and
+seeded temperature/top-k/top-p sampling, explicit stop reasons, and transactional
+caller outputs. All 14 miniature generation cases, 17 sampler cases, existing
+regressions, and ASan/UBSan passed. Two offline fixture regenerations matched
+exactly. Independent reviews closed comparator and filesystem-alias findings.
+See [GENERATION.md](../docs/GENERATION.md) for the API, RNG, CLI, reproduction,
+observed results, and limits. Steps D2 through D5 remain open.
 
 Exit: text prompt to text output on the full checkpoint with reported, bounded RSS.
 

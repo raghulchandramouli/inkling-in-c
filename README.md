@@ -1,8 +1,10 @@
 # inkling-in-c
 
-The scalar C99 text runtime accepts a complete prefix of raw token IDs and returns
-float32 logits for every position. It binds the native pinned checkpoint without
-a conversion step. See [the text runtime contract and reproducible checks](docs/TEXT.md).
+The scalar C99 text runtime accepts raw token IDs and supports greedy or seeded
+generation with temperature, top-k, and top-p. Each step recomputes the full
+prefix. It also returns float32 logits for every position through its forward API
+and binds the native pinned checkpoint without a conversion step. See
+[the forward contract](docs/TEXT.md) and [generation guide](docs/GENERATION.md).
 
 Implementation references and immutable upstream revisions are recorded in
 [`docs/SOURCES.md`](docs/SOURCES.md).
@@ -97,3 +99,19 @@ layers 0, 2, and 5. These checks establish layer parity, not full-checkpoint log
 See [TEXT.md](docs/TEXT.md) for the API, private diagnostic probe, tolerances,
 and bounded download commands. [The Phase C validation record](docs/PHASE_C_VALIDATION.md)
 records the completed checks and their limits.
+
+## Generate raw token IDs
+
+```sh
+bin/inkling MODEL_DIR --ids 1,2,3 --gen 16
+bin/inkling MODEL_DIR --ids 1,2,3 --gen 16 \
+	--temperature 0.8 --top-k 20 --top-p 0.9 --seed 42 \
+	--dump-tokens generated.txt --out run.json
+```
+
+The JSON report separates prompt and generated IDs and records effective options
+and the stop reason. Temperature zero selects greedy decoding. The committed
+miniature tests prove continuation parity against the pinned CPU oracle;
+full-checkpoint generation and incremental caches remain later Phase D gates.
+See [GENERATION.md](docs/GENERATION.md) for the API, RNG, output failure behavior,
+and reproducible checks. Text tokenization belongs to Phase E.

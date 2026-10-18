@@ -5,6 +5,8 @@ public opener requires the pinned native checkpoint described in [SOURCES.md](SO
 The committed miniature checkpoint exercises the same binder and arithmetic through
 private fixture entry points. Phase C passed the checks in
 [the validation record](PHASE_C_VALIDATION.md) on 2026-10-15.
+Raw-ID generation uses this same complete-prefix graph. Its API, sampling policy,
+CLI options, and checks are documented in [GENERATION.md](GENERATION.md).
 
 ## Public API
 
