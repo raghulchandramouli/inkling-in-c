@@ -44,6 +44,28 @@ int inkling_model_read(const InklingModel *model, InklingRange range,
                        uint64_t relative, size_t bytes, void *destination);
 typedef void (*InklingTrace)(void *user, const char *name, const float *values,
                              const size_t *indices, size_t count);
+struct InklingContext {
+    const InklingModel *model;
+    size_t capacity, history_count;
+    float *hidden[2], *norm, *block;
+    float *q, *k, *v, *relative, *heads;
+    float *scores, *bias, *history;
+    float *pair, *activation, *expert, *routed, *shared;
+    float *router, *mixture;
+    size_t *selected;
+    unsigned char *weights;
+    InklingTrace trace;
+    void *trace_user;
+    struct InklingGeneration *generation;
+};
+typedef struct { float logit; uint32_t id; double mass; } InklingCandidate;
+int inkling_sample(const float *logits, size_t width, const InklingGenerateOptions *options,
+                    InklingCandidate *candidates, uint64_t *state, uint32_t *id);
+int inkling_generate_options(const InklingGenerateOptions *options, size_t width,
+                             InklingGenerateOptions *effective);
+void inkling_generation_free(struct InklingGeneration *generation);
+int inkling_forward_last(InklingContext *context, const uint32_t *ids, size_t tokens,
+                         float *logits, size_t logits_count);
 void inkling_context_trace(InklingContext *context, InklingTrace trace, void *user);
 int inkling_attention_forward(InklingContext *context, const InklingLayer *layer,
                               const float *input, size_t tokens,

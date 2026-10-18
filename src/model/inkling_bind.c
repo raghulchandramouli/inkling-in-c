@@ -635,3 +635,8 @@ int inkling_model_open_layer_fixture(const char *directory, const char *manifest
     if (!manifest) { if (out) *out = NULL; return fail("layer fixture requires a manifest"); }
     return open_model(directory, manifest, 0, out);
 }
+
+size_t inkling_model_max_length(const InklingModel *model)
+{
+    return model != NULL && model->complete ? model->config.model_max_length : 0;
+}

@@ -10,20 +10,6 @@
 
 #define WEIGHT_BYTES ((size_t)1024 * 1024)
 
-struct InklingContext {
-    const InklingModel *model;
-    size_t capacity, history_count;
-    float *hidden[2], *norm, *block;
-    float *q, *k, *v, *relative, *heads;
-    float *scores, *bias, *history;
-    float *pair, *activation, *expert, *routed, *shared;
-    float *router, *mixture;
-    size_t *selected;
-    unsigned char *weights;
-    InklingTrace trace;
-    void *trace_user;
-};
-
 static int failure(const char *message)
 {
     fprintf(stderr, "inkling forward: %s\n", message);
@@ -82,6 +68,7 @@ void inkling_context_free(InklingContext *context)
     free(context->routed); free(context->shared);
     free(context->router); free(context->mixture);
     free(context->selected); free(context->weights);
+    inkling_generation_free(context->generation);
     free(context);
 }
 
@@ -489,8 +476,8 @@ int inkling_layer_forward(InklingContext *context, const InklingLayer *layer,
     return 1;
 }
 
-int inkling_forward(InklingContext *context, const uint32_t *ids, size_t tokens,
-                    float *logits, size_t logits_count)
+static int forward_rows(InklingContext *context, const uint32_t *ids, size_t tokens,
+                        float *logits, size_t logits_count, int last)
 {
     if (context == NULL) return failure("missing context");
     inkling_context_reset(context);
@@ -499,7 +486,7 @@ int inkling_forward(InklingContext *context, const uint32_t *ids, size_t tokens,
     size_t count, bytes, id_bytes;
     if (!model->complete || ids == NULL || logits == NULL || tokens == 0 ||
         tokens > context->capacity || tokens > config->model_max_length ||
-        !inkling_size_mul(tokens, config->unpadded_vocab_size, &count) || logits_count < count ||
+        !inkling_size_mul(last ? 1 : tokens, config->unpadded_vocab_size, &count) || logits_count < count ||
         !inkling_size_mul(count, sizeof(float), &bytes) || bytes > (size_t)PTRDIFF_MAX ||
         !inkling_size_mul(tokens, sizeof(uint32_t), &id_bytes) ||
         overlap(ids, id_bytes, logits, bytes))
@@ -528,15 +515,27 @@ int inkling_forward(InklingContext *context, const uint32_t *ids, size_t tokens,
                                    tokens, context->hidden[1 - current])) return 0;
         current = 1 - current;
     }
-    for (size_t t = 0; t < tokens; t++) {
+    for (size_t t = last ? tokens - 1 : 0; t < tokens; t++) {
         float *x = context->hidden[current] + t * hidden;
         if (!inkling_rmsnorm(x, hidden, model->final_norm, hidden,
                              config->rms_norm_epsilon, x, hidden)) return failure("final norm failed");
         trace_values(context, "final_norm", x, hidden);
         for (size_t j = 0; j < hidden; j++) x[j] /= config->logits_mup_width_multiplier;
         if (!project(context, &model->unembed, 0, config->unpadded_vocab_size, x,
-                     logits + t * config->unpadded_vocab_size)) return failure("unembedding failed");
+                     logits + (last ? 0 : t) * config->unpadded_vocab_size)) return failure("unembedding failed");
     }
     trace_values(context, "logits", logits, count);
     return 1;
+}
+
+int inkling_forward(InklingContext *context, const uint32_t *ids, size_t tokens,
+                    float *logits, size_t logits_count)
+{
+    return forward_rows(context, ids, tokens, logits, logits_count, 0);
+}
+
+int inkling_forward_last(InklingContext *context, const uint32_t *ids, size_t tokens,
+                         float *logits, size_t logits_count)
+{
+    return forward_rows(context, ids, tokens, logits, logits_count, 1);
 }
