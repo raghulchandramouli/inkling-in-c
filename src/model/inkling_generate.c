@@ -179,7 +179,15 @@ int inkling_generate(InklingContext *context, const uint32_t *prompt, size_t pro
         while (staged.generated_count < required) {
             size_t length = prompt_count + staged.generated_count;
             uint32_t token;
-            if (!inkling_forward_last(context, generation->prefix, length, generation->logits, width)) return 0;
+            int forwarded;
+            if (context->incremental) {
+                forwarded = staged.generated_count == 0 ?
+                    inkling_prefill(context, generation->prefix, prompt_count, generation->logits, width) :
+                    inkling_decode(context, generation->prefix[length - 1], generation->logits, width);
+            } else {
+                forwarded = inkling_forward_last(context, generation->prefix, length, generation->logits, width);
+            }
+            if (!forwarded) return 0;
             if (!inkling_sample(generation->logits, width, &staged.effective,
                                generation->candidates, &generation->state, &token))
                 return failure("sampling failed");

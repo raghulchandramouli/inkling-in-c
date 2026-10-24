@@ -1,0 +1,71 @@
+{
+  "checkpoint_downloaded": false,
+  "checks": [
+    {
+      "command": "make test",
+      "log": ".context/d-offline.log",
+      "result": "PASS"
+    },
+    {
+      "command": "make test-sanitize",
+      "log": ".context/d-sanitize.log",
+      "result": "PASS"
+    },
+    {
+      "command": "make test-mutations",
+      "log": ".context/d-mutations.log",
+      "mutations_rejected": 17,
+      "result": "PASS"
+    },
+    {
+      "command": "python3 -B tests/test_memory_cli.py bin/model_cli_probe",
+      "log": ".context/d-final-cli.log",
+      "result": "PASS"
+    }
+  ],
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+  "date": "2026-10-24T16:57:35.411123+00:00",
+  "existing_generation_oracle": {
+    "generation_cases": 14,
+    "max_absolute_logit_error": 2.24e-08,
+    "sampler_cases": 17
+  },
+  "incremental": {
+    "diagnostic_relative_extent": 3,
+    "diagnostic_tau_floor": 2,
+    "exact_logit_positions": 521,
+    "production_local_window": 512
+  },
+  "platform": "Darwin arm64",
+  "python": "3.9.6",
+  "remaining": [
+    "D5 full-checkpoint logit and 32-token greedy parity",
+    "Full-model RSS and calibrated memory presets",
+    "Cross-platform validation",
+    "Phase E tokenizer and usable CLI"
+  ],
+  "review": {
+    "artifact": ".context/d-final-review.md",
+    "result": "No blocking runtime defect found"
+  },
+  "schema": 1,
+  "scope": "Checkpoint-independent D2 through D4",
+  "source_sha256": {
+    "include/inkling/inkling_model.h": "be32aaa6951ad5e370afe6afee9ecf3549f48eb431f8a44216f3ecb983df3438",
+    "makefile": "126f2ae5f111201f6e416542bc35bc90bb252b368e91711abfc942d4c5884599",
+    "src/cli/inkling_run.c": "a5b30957fbc4160fdd8e7395a45b942888c55cc493ce7fb88ae8fa9a3b6448a7",
+    "src/model/inkling_bind.c": "df5222899c3b590e81e0ad21e947f8765615dcb594ce52a820191ea47a879f12",
+    "src/model/inkling_forward.c": "d8c9186a597b1a47fbf9a47f5a90ea10a4e0edac0ed26e0d7d16b45baa1c0d4e",
+    "src/model/inkling_generate.c": "7414977f2689fe35ea1aea4f90b994e082d7af4090870916e0605ed2f566d46c",
+    "src/model/inkling_model_internal.h": "2c392a3fe3071813bd5c8ca41cac8d6ec72072cd2da827e38fb0e28a40fee669",
+    "src/model/inkling_packed.c": "2613eedafa3e1c1470e9b3729d73bc493225362e1377edc2fca7d42744deb5f8",
+    "src/model/inkling_project.c": "3944b5ff895d2ed8d14425da692579b577800078b3a2be77d3e2c7e68ff2d48d",
+    "tests/packed_probe.c": "e68c548efd7158ccc1b39e44e5a0559fdad05afb9e2c4c3a390253ef42de1796",
+    "tests/test_expert_cache.c": "543e58db6488b6b82f16d8abaf973576f665055100c675a970beb9d8350dac28",
+    "tests/test_incremental.c": "e287bf92cc6c66d959b54adf71fa173fa41687ccc579f32c5df101366ebbbf87",
+    "tests/test_memory_cli.py": "2c8819b97e53a2195d3248623c4f898d837f65c7a4c94c278886ffecd3886b3b",
+    "tests/test_packed.py": "273791d7dc2511b97e7d4e6c186ab4bf8c9e96421fa573b9a597493871e7a89a",
+    "tools/check_model_mutations.py": "8111b8cbd6d68ceae34ce7bade2dc45185ba10786946e40b273f6d821d88d7fd",
+    "tools/pack_trunk.py": "1731aa7285def500a108a85e11abbea1e20f6770c5da5cbd355c302e65090498"
+  }
+}

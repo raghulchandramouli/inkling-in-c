@@ -1,8 +1,8 @@
 # inkling-in-c
 
 The scalar C99 text runtime accepts raw token IDs and supports greedy or seeded
-generation with temperature, top-k, and top-p. Each step recomputes the full
-prefix. It also returns float32 logits for every position through its forward API
+generation with temperature, top-k, and top-p. Generation prefills once and then decodes with per-layer KV and convolution
+state. An explicit full-prefix mode remains available for comparison. It also returns float32 logits for every position through its forward API
 and binds the native pinned checkpoint without a conversion step. See
 [the forward contract](docs/TEXT.md) and [generation guide](docs/GENERATION.md).
 
@@ -112,6 +112,24 @@ bin/inkling MODEL_DIR --ids 1,2,3 --gen 16 \
 The JSON report separates prompt and generated IDs and records effective options
 and the stop reason. Temperature zero selects greedy decoding. The committed
 miniature tests prove continuation parity against the pinned CPU oracle;
-full-checkpoint generation and incremental caches remain later Phase D gates.
+incremental/full-prefix parity, expert-cache budgets, and packed/native storage
+are verified with miniature weights. Full-checkpoint generation remains D5.
 See [GENERATION.md](docs/GENERATION.md) for the API, RNG, output failure behavior,
 and reproducible checks. Text tokenization belongs to Phase E.
+
+
+## Use bounded weight buffers and an expert cache
+
+```sh
+bin/inkling MODEL_DIR --ids 1,2,3 --gen 16 \
+    --expert-cache-bytes 67108864 --weight-buffer-bytes 1048576 \
+    --decode-mode incremental --trace run.jsonl
+python3 tools/pack_trunk.py MODEL_DIR trunk.safetensors
+bin/inkling MODEL_DIR --ids 1,2,3 --gen 16 --packed-trunk trunk.safetensors
+```
+
+The cache stores complete routed NVFP4 projections and includes entry metadata
+in its byte limit. Larger entries stream through the weight buffer. The optional
+trunk preserves native bytes and leaves routed experts in their original shards.
+See [memory and storage contracts](docs/MEMORY.md) for APIs, traces, validation,
+and the checkpoint-dependent gates.

@@ -75,6 +75,9 @@ int inkling_model_read(const InklingModel *model, InklingRange range,
         range.start + range.bytes > shard->file_size - shard->header_size - 8)
         return fail("tensor read exceeds original shard");
     if (!bytes) return 1;
+    int handled;
+    if (!inkling_packed_read(model, range, relative, bytes, destination, &handled)) return 0;
+    if (handled) return 1;
     uint64_t start = range.start + relative;
     if (!model->extracted) {
         if (!shard->path || start > UINT64_MAX - shard->header_size - 8) return fail("unavailable shard");
@@ -318,6 +321,7 @@ void inkling_model_close(InklingModel *model)
     free(model->shards); free(model->blobs); free(model->layers);
     free(model->embed_norm); free(model->final_norm);
     free_matrix(&model->embed); free_matrix(&model->unembed);
+    inkling_packed_close(model->packed);
     inkling_config_free(&model->config);
     inkling_index_free(&model->index);
     free(model);
@@ -577,7 +581,8 @@ static int quantization(const InklingModel *model, const char *directory)
     return ok || fail("unsupported text quantization metadata (expected NVFP4, group 16, matching exclusions)");
 }
 
-static int open_model(const char *directory, const char *manifest, int production, InklingModel **out)
+static int open_model(const char *directory, const char *manifest, int production,
+                      const InklingModelOptions *options, InklingModel **out)
 {
     if (!out) return fail("model output pointer is NULL");
     *out = NULL;
@@ -595,6 +600,8 @@ static int open_model(const char *directory, const char *manifest, int productio
     ok = path && inkling_index_load(path, &model->index);
     free(path);
     if (!ok || !load_shards(model, directory, model->extracted) || !quantization(model, directory)) { ok = 0; goto done; }
+    if (options && options->packed_trunk_path &&
+        !inkling_packed_open(model, directory, options->packed_trunk_path)) { ok = 0; goto done; }
     size_t layer = 0;
     if (manifest && !load_manifest(model, manifest, &layer)) { ok = 0; goto done; }
     size_t layer_count = manifest ? 1 : model->config.num_hidden_layers;
@@ -622,18 +629,29 @@ done:
 
 int inkling_model_open(const char *directory, InklingModel **out)
 {
-    return open_model(directory, NULL, 1, out);
+    return inkling_model_open_with_options(directory, NULL, out);
+}
+
+int inkling_model_open_with_options(const char *directory, const InklingModelOptions *options, InklingModel **out)
+{
+    return open_model(directory, NULL, 1, options, out);
 }
 
 int inkling_model_open_text_fixture(const char *directory, InklingModel **out)
 {
-    return open_model(directory, NULL, 0, out);
+    return inkling_model_open_text_fixture_with_options(directory, NULL, out);
+}
+
+int inkling_model_open_text_fixture_with_options(const char *directory,
+    const InklingModelOptions *options, InklingModel **out)
+{
+    return open_model(directory, NULL, 0, options, out);
 }
 
 int inkling_model_open_layer_fixture(const char *directory, const char *manifest, InklingModel **out)
 {
     if (!manifest) { if (out) *out = NULL; return fail("layer fixture requires a manifest"); }
-    return open_model(directory, manifest, 0, out);
+    return open_model(directory, manifest, 0, NULL, out);
 }
 
 size_t inkling_model_max_length(const InklingModel *model)
