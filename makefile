@@ -7,7 +7,7 @@ LDLIBS += -lm
 
 BIN_DIR ?= bin
 BIN := $(BIN_DIR)/inkling
-TESTS := $(addprefix $(BIN_DIR)/,test_safetensors test_config test_json test_catalogue test_alloc test_bf16 test_nvfp4 test_math test_model_bind test_model_runtime model_probe model_cli_probe test_generate generation_probe)
+TESTS := $(addprefix $(BIN_DIR)/,test_safetensors test_config test_json test_catalogue test_alloc test_bf16 test_nvfp4 test_math test_model_bind test_model_runtime model_probe model_cli_probe test_generate generation_probe test_incremental test_expert_cache packed_probe)
 HEADERS := $(wildcard include/inkling/*.h) src/io/inkling_json.h $(wildcard src/core/*.h src/model/*.h)
 IO_SOURCES := $(wildcard src/io/*.c)
 CORE_SOURCES := $(wildcard src/core/*.c)
@@ -32,9 +32,12 @@ $(BIN_DIR)/test_bf16: tests/test_bf16.c src/core/inkling_bf16.c
 $(BIN_DIR)/test_nvfp4: tests/test_nvfp4.c src/core/inkling_nvfp4.c src/core/inkling_alloc.c src/core/inkling_bf16.c src/io/inkling_json.c
 
 $(BIN_DIR)/test_math: tests/test_math.c $(CORE_SOURCES) src/io/inkling_json.c
-$(BIN_DIR)/test_model_bind: tests/test_model_bind.c src/model/inkling_bind.c $(IO_SOURCES) $(CORE_SOURCES)
+$(BIN_DIR)/test_model_bind: tests/test_model_bind.c $(MODEL_SOURCES) $(IO_SOURCES) $(CORE_SOURCES)
 $(BIN_DIR)/test_model_runtime: tests/test_model_runtime.c $(MODEL_SOURCES) $(IO_SOURCES) $(CORE_SOURCES)
 $(BIN_DIR)/model_probe: tests/model_probe.c $(MODEL_SOURCES) $(IO_SOURCES) $(CORE_SOURCES)
+$(BIN_DIR)/test_incremental: tests/test_incremental.c $(MODEL_SOURCES) $(IO_SOURCES) $(CORE_SOURCES)
+$(BIN_DIR)/packed_probe: tests/packed_probe.c $(MODEL_SOURCES) $(IO_SOURCES) $(CORE_SOURCES)
+$(BIN_DIR)/test_expert_cache: tests/test_expert_cache.c $(filter-out src/model/inkling_project.c,$(MODEL_SOURCES)) $(IO_SOURCES) $(CORE_SOURCES) $(BIN_DIR)/inkling_project_test.o
 $(BIN_DIR)/generation_probe: tests/generation_probe.c $(MODEL_SOURCES) $(IO_SOURCES) $(CORE_SOURCES)
 $(BIN_DIR)/test_generate: tests/test_generate.c $(MODEL_SOURCES) $(IO_SOURCES) $(filter-out src/core/inkling_alloc.c,$(CORE_SOURCES)) $(BIN_DIR)/inkling_alloc_test.o
 $(BIN_DIR)/model_cli_probe: $(BIN_DIR)/model_cli_probe.o $(MODEL_SOURCES) $(IO_SOURCES) $(CORE_SOURCES)
@@ -42,11 +45,14 @@ $(BIN_DIR)/model_cli_probe: $(BIN_DIR)/model_cli_probe.o $(MODEL_SOURCES) $(IO_S
 $(BIN) $(TESTS): $(HEADERS) | $(BIN_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(filter %.c %.o,$^) $(LDFLAGS) $(LDLIBS) -o $@
 
+$(BIN_DIR)/inkling_project_test.o: src/model/inkling_project.c $(HEADERS) | $(BIN_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -Dmalloc=inkling_test_cache_malloc -c $< -o $@
+
 $(BIN_DIR)/inkling_alloc_test.o: src/core/inkling_alloc.c src/core/inkling_alloc.h | $(BIN_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -Dmalloc=inkling_test_malloc -c $< -o $@
 
 $(BIN_DIR)/model_cli_probe.o: src/cli/inkling_run.c $(HEADERS) | $(BIN_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -Dinkling_model_open=inkling_model_open_text_fixture -c $< -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) -Dinkling_model_open=inkling_model_open_text_fixture -Dinkling_model_open_with_options=inkling_model_open_text_fixture_with_options -c $< -o $@
 
 $(BIN_DIR):
 	mkdir -p $@
@@ -69,6 +75,10 @@ test: $(BIN) $(TESTS) $(SAFETENSORS_FIXTURE) $(REAL_SAFETENSORS_HEADER)
 	$(BIN_DIR)/test_model_bind tests/fixtures/model
 	$(BIN_DIR)/test_model_runtime tests/fixtures/model
 	$(BIN_DIR)/test_generate tests/fixtures/model
+	$(BIN_DIR)/test_incremental tests/fixtures/model
+	$(BIN_DIR)/test_expert_cache tests/fixtures/model
+	python3 -B tests/test_packed.py $(BIN_DIR)/packed_probe
+	python3 -B tests/test_memory_cli.py $(BIN_DIR)/model_cli_probe
 	python3 -B tests/test_generation_cli.py $(BIN) $(BIN_DIR)/model_cli_probe $(BIN_DIR)/generation_probe
 	python3 -B tests/test_generation_fixture.py
 	python3 -B tools/check_model.py --probe $(BIN_DIR)/model_probe --fixtures tests/fixtures/model
@@ -102,4 +112,4 @@ test-sanitize:
 		LDFLAGS="$(LDFLAGS) -fsanitize=address,undefined"
 
 clean:
-	rm -f $(BIN) $(TESTS) $(BIN_DIR)/inkling_alloc_test.o $(BIN_DIR)/model_cli_probe.o
+	rm -f $(BIN) $(TESTS) $(BIN_DIR)/inkling_alloc_test.o $(BIN_DIR)/inkling_project_test.o $(BIN_DIR)/model_cli_probe.o

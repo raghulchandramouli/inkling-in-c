@@ -613,6 +613,10 @@ reproducible engine tests.
 
 ## 11. CLI contract
 
+Current raw-ID, cache-byte, row-buffer, decode-mode, packed-trunk, and trace options
+are documented in [MEMORY.md](../docs/MEMORY.md). The remaining target CLI below
+includes Phase E and full-checkpoint memory-preset work.
+
 Target synopsis:
 
 ```text
@@ -738,7 +742,7 @@ hidden size, heads, layers, experts, and vocabulary. Validate:
 4. biased selection, unbiased mixture, negative logits, and local tie policy;
 5. reset, retry, and independent contexts sharing one model.
 
-The remaining Gate 3 checks belong to Phase D and remain open:
+Phase D now covers these remaining Gate 3 checks with miniature weights:
 
 1. greedy generated token IDs;
 2. full-prefix generation;
@@ -854,7 +858,8 @@ The model owns immutable bindings. Contexts own mutable activation buffers and
 its NVFP4 scale row. All pinned rows fit. Bounded reads fail on missing bytes.
 Keep backing files unchanged and free contexts before their model. Discard output
 after any failed forward, then retry with a complete prefix after resolving the
-failure. This implementation has no incremental cache or memory-budget contract.
+failure. At the Phase C gate, incremental caches and configurable memory limits
+were still absent. Phase D adds them without changing the reference forward API.
 
 Exit: miniature full-prefix logits and isolated real-layer outputs match the
 independent widened-float32 oracle. Full-checkpoint text parity remains Gate 5.
@@ -862,10 +867,10 @@ independent widened-float32 oracle. Full-checkpoint text parity remains Gate 5.
 ### Phase D: generation and bounded memory
 
 1. [x] Add greedy decode, then configurable sampling.
-2. Add local/global KV caches and four convolution histories per layer.
-3. Add packed expert LRU and trace reporting.
-4. Add trunk streaming/packing and low-memory embedding/unembed paths.
-5. Prove identical greedy IDs across incremental/full and memory presets.
+2. [x] Add local/global KV caches and four convolution histories per layer.
+3. [x] Add packed expert LRU and trace reporting.
+4. [x] Add trunk streaming/packing and low-memory embedding/unembed paths.
+5. [ ] Prove identical greedy IDs across incremental/full and memory presets on the full checkpoint.
 
 D1 completed on 2026-10-18 with raw-ID complete-prefix generation, greedy and
 seeded temperature/top-k/top-p sampling, explicit stop reasons, and transactional
@@ -873,7 +878,16 @@ caller outputs. All 14 miniature generation cases, 17 sampler cases, existing
 regressions, and ASan/UBSan passed. Two offline fixture regenerations matched
 exactly. Independent reviews closed comparator and filesystem-alias findings.
 See [GENERATION.md](../docs/GENERATION.md) for the API, RNG, CLI, reproduction,
-observed results, and limits. Steps D2 through D5 remain open.
+observed results, and limits.
+
+D2-D4 implement per-layer local/global KV state and four carried convolution
+histories, incremental generation, a strict allocated-byte packed expert LRU,
+JSONL cache events and read statistics, configurable weight tiles, and an optional native-byte trunk with header and payload
+checksums. Offline miniature checks cover incremental/full-prefix logits,
+cache capacities, and native/packed storage. See [MEMORY.md](../docs/MEMORY.md)
+for their contracts and reproducible checks. No full checkpoint was downloaded
+for these steps. D5's full-checkpoint parity, actual RSS, and memory-preset
+calibration remain open.
 
 Exit: text prompt to text output on the full checkpoint with reported, bounded RSS.
 

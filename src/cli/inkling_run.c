@@ -256,6 +256,34 @@ static int write_report(FILE *file, const uint32_t *prompt, size_t prompt_count,
                 options->top_k, options->top_p, options->seed) >= 0;
 }
 
+typedef struct { FILE *file; int failed; } CacheLog;
+
+static void write_cache_event(void *user, const InklingCacheEvent *event)
+{
+    CacheLog *log = user;
+    const char *kind = event->kind == INKLING_CACHE_HIT ? "hit" :
+        event->kind == INKLING_CACHE_MISS ? "miss" :
+        event->kind == INKLING_CACHE_EVICT ? "evict" : "bypass";
+    if (fprintf(log->file, "{\"event\":\"%s\",\"layer\":%zu,\"expert\":%zu,"
+        "\"projection\":\"%s\",\"bytes\":%zu,\"resident_bytes\":%zu}\n",
+        kind, event->layer, event->expert, event->projection == 0 ? "w13" : "down",
+        event->bytes, event->resident_bytes) < 0) log->failed = 1;
+}
+
+static int write_stats(FILE *file, const InklingContext *context)
+{
+    InklingRuntimeStats stats;
+    inkling_context_get_stats(context, &stats);
+    return fprintf(file, "{\"event\":\"summary\",\"bytes_read\":%" PRIu64
+        ",\"read_calls\":%" PRIu64 ",\"cache_hits\":%" PRIu64
+        ",\"cache_misses\":%" PRIu64 ",\"cache_evictions\":%" PRIu64
+        ",\"tokens_processed\":%" PRIu64 ",\"cache_bytes\":%zu,"
+        "\"cache_peak_bytes\":%zu,\"cache_capacity\":%zu}\n",
+        stats.bytes_read, stats.read_calls, stats.cache_hits, stats.cache_misses,
+        stats.cache_evictions, stats.tokens_processed, stats.cache_bytes,
+        stats.cache_peak_bytes, stats.cache_capacity) >= 0;
+}
+
 static int run_ids(int argc, char **argv)
 {
     (void)signal(SIGPIPE, SIG_IGN);
@@ -263,8 +291,12 @@ static int run_ids(int argc, char **argv)
     float *logits = NULL;
     size_t tokens = 0, total = 0, count = 0;
     InklingGenerateOptions options = INKLING_GENERATE_OPTIONS_INIT;
+    InklingContextOptions context_options = INKLING_CONTEXT_OPTIONS_INIT;
+    InklingModelOptions model_options = INKLING_MODEL_OPTIONS_INIT;
     const char *logits_path = NULL;
     OutputFile token_file = {0}, report_file = {0};
+    OutputFile trace_file = {0};
+    CacheLog cache_log = {0};
     unsigned seen = 0;
     if (argc < 4 || !parse_ids(argv[3], &ids, &tokens)) goto invalid;
     for (int i = 4; i < argc; i += 2) {
@@ -294,21 +326,42 @@ static int run_ids(int argc, char **argv)
         } else if (strcmp(flag, "--dump-tokens") == 0) { bit = 32; token_file.path = argument; }
         else if (strcmp(flag, "--out") == 0) { bit = 64; report_file.path = argument; }
         else if (strcmp(flag, "--dump-logits") == 0) { bit = 128; logits_path = argument; }
+        else if (strcmp(flag, "--expert-cache-bytes") == 0) {
+            bit = 256;
+            if (!parse_unsigned(argument, PTRDIFF_MAX, &value)) goto invalid;
+            context_options.expert_cache_bytes = (size_t)value;
+        } else if (strcmp(flag, "--weight-buffer-bytes") == 0) {
+            bit = 512;
+            if (!parse_unsigned(argument, PTRDIFF_MAX, &value) || value == 0) goto invalid;
+            context_options.weight_buffer_bytes = (size_t)value;
+        } else if (strcmp(flag, "--decode-mode") == 0) {
+            bit = 1024;
+            if (strcmp(argument, "full") == 0) context_options.incremental = 0;
+            else if (strcmp(argument, "incremental") == 0) context_options.incremental = 1;
+            else goto invalid;
+        } else if (strcmp(flag, "--packed-trunk") == 0) {
+            bit = 2048; model_options.packed_trunk_path = argument;
+        } else if (strcmp(flag, "--trace") == 0) { bit = 4096; trace_file.path = argument; }
         else goto invalid;
         if ((seen & bit) != 0 || *argument == '\0') goto invalid;
         seen |= bit;
     }
-    if (seen != 128 && ((seen & 1) == 0 || (seen & 128) != 0)) goto invalid;
+    int dumping = (seen & 128) != 0;
+    if (dumping ? (seen & ~(128U | 256U | 512U | 1024U | 2048U)) != 0 : (seen & 1) == 0)
+        goto invalid;
     if (!inkling_size_add(tokens, options.max_new_tokens, &total) ||
-        same_destination(token_file.path, report_file.path)) goto invalid;
+        same_destination(token_file.path, report_file.path) ||
+        same_destination(token_file.path, trace_file.path) ||
+        same_destination(report_file.path, trace_file.path)) goto invalid;
     InklingModel *model = NULL;
     InklingContext *context = NULL;
     int success = 0;
-    if (!inkling_model_open(argv[1], &model)) goto done;
-    if (seen == 128) {
+    if (!inkling_model_open_with_options(argv[1], &model_options, &model)) goto done;
+    if (dumping) {
+        context_options.max_tokens = tokens;
         if (inkling_size_mul(tokens, inkling_model_logits_width(model), &count) &&
             inkling_alloc_array(count, sizeof(*logits), (void **)&logits) &&
-            inkling_context_create(model, tokens, &context) &&
+            inkling_context_create_with_options(model, &context_options, &context) &&
             inkling_forward(context, ids, tokens, logits, count) &&
             write_logits(logits_path, logits, count, tokens, inkling_model_logits_width(model))) success = 1;
         goto done;
@@ -321,8 +374,16 @@ static int run_ids(int argc, char **argv)
     InklingGenerateResult result;
     if (!inkling_alloc_array(count, sizeof(*generated), &allocation)) goto done;
     generated = allocation;
-    if (!inkling_context_create(model, total, &context) ||
-        !inkling_generate(context, ids, tokens, &options, generated, count, &result)) goto done;
+    context_options.max_tokens = total;
+    if (!inkling_context_create_with_options(model, &context_options, &context)) goto done;
+    if (trace_file.path != NULL) {
+        if (!stage_file(&trace_file)) goto done;
+        cache_log.file = trace_file.file;
+        inkling_context_cache_trace(context, write_cache_event, &cache_log);
+    }
+    if (!inkling_generate(context, ids, tokens, &options, generated, count, &result)) goto done;
+    if (trace_file.path != NULL && (cache_log.failed ||
+        !write_stats(trace_file.file, context) || !close_stage(&trace_file))) goto done;
     if (token_file.path != NULL && (!stage_file(&token_file) ||
         !write_ids(token_file.file, generated, result.generated_count) ||
         fputc('\n', token_file.file) == EOF || !close_stage(&token_file))) goto done;
@@ -330,18 +391,21 @@ static int run_ids(int argc, char **argv)
         !write_report(report_file.file, ids, tokens, generated, &result) ||
         !close_stage(&report_file))) goto done;
     if (token_file.path != NULL && !publish_file(&token_file)) goto done;
+    if (trace_file.path != NULL && !publish_file(&trace_file)) goto done;
     if (report_file.path != NULL) {
         if (!publish_file(&report_file)) goto done;
     } else if (!write_report(stdout, ids, tokens, generated, &result) || fflush(stdout) != 0) goto done;
     success = 1;
 done:
     if (!success) {
-        fputs(seen == 128 ? "raw token forward failed\n" : "raw token generation or output failed\n", stderr);
+        fputs(dumping ? "raw token forward failed\n" : "raw token generation or output failed\n", stderr);
         if (token_file.published) fprintf(stderr, "already published: %s\n", token_file.path);
         if (report_file.published) fprintf(stderr, "already published: %s\n", report_file.path);
+        if (trace_file.published) fprintf(stderr, "already published: %s\n", trace_file.path);
     }
     discard_file(&token_file);
     discard_file(&report_file);
+    discard_file(&trace_file);
     free(ids);
     free(generated);
     free(logits);
@@ -376,7 +440,9 @@ int main(int argc, char **argv)
                 "       %s MODEL_DIR --verify-model [--with-mtp] [--metadata-only]\n"
                 "       %s MODEL_DIR --ids ID,ID,... --dump-logits PATH\n"
                 "       %s MODEL_DIR --ids ID,ID,... --gen N [--temperature T] [--top-k K]\n"
-                "         [--top-p P] [--seed SEED] [--dump-tokens PATH] [--out PATH]\n",
+                "         [--top-p P] [--seed SEED] [--dump-tokens PATH] [--out PATH]\n"
+                "         [--decode-mode incremental|full] [--expert-cache-bytes N]\n"
+                "         [--weight-buffer-bytes N] [--packed-trunk PATH] [--trace PATH]\n",
                 argv[0], argv[0], argv[0], argv[0]);
         return 2;
     }

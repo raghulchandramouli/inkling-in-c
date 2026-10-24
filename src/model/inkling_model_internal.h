@@ -31,6 +31,7 @@ struct InklingModel {
     InklingBlob *blobs;
     size_t blob_count;
     int extracted;
+    struct InklingPackedTrunk *packed;
     InklingLayer *layers;
     size_t layer_count;
     int complete;
@@ -38,6 +39,8 @@ struct InklingModel {
     float *embed_norm, *final_norm;
 };
 int inkling_model_open_text_fixture(const char *directory, InklingModel **out);
+int inkling_model_open_text_fixture_with_options(const char *directory,
+    const InklingModelOptions *options, InklingModel **out);
 int inkling_model_open_layer_fixture(const char *metadata_directory,
                                      const char *manifest, InklingModel **out);
 int inkling_model_read(const InklingModel *model, InklingRange range,
@@ -46,7 +49,7 @@ typedef void (*InklingTrace)(void *user, const char *name, const float *values,
                              const size_t *indices, size_t count);
 struct InklingContext {
     const InklingModel *model;
-    size_t capacity, history_count;
+    size_t capacity, history_count, scratch_capacity;
     float *hidden[2], *norm, *block;
     float *q, *k, *v, *relative, *heads;
     float *scores, *bias, *history;
@@ -57,7 +60,23 @@ struct InklingContext {
     InklingTrace trace;
     void *trace_user;
     struct InklingGeneration *generation;
+    struct InklingSequence *sequence;
+    struct InklingExpertCache *expert_cache;
+    size_t weight_bytes, expert_cache_capacity;
+    int incremental;
+    InklingRuntimeStats stats;
+    InklingCacheTrace cache_trace;
+    void *cache_trace_user;
 };
+int inkling_project(InklingContext *context, const InklingMatrix *matrix,
+                    size_t expert, size_t rows, const float *input, float *output);
+int inkling_context_read(InklingContext *context, InklingRange range, uint64_t relative,
+                          size_t bytes, void *destination);
+void inkling_expert_cache_free(struct InklingExpertCache *cache);
+int inkling_packed_open(InklingModel *model, const char *directory, const char *path);
+void inkling_packed_close(struct InklingPackedTrunk *packed);
+int inkling_packed_read(const InklingModel *model, InklingRange range, uint64_t relative,
+                         size_t bytes, void *destination, int *handled);
 typedef struct { float logit; uint32_t id; double mass; } InklingCandidate;
 int inkling_sample(const float *logits, size_t width, const InklingGenerateOptions *options,
                     InklingCandidate *candidates, uint64_t *state, uint32_t *id);

@@ -33,6 +33,7 @@ def main():
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
     original = (ROOT / SOURCE).read_text()
+    reference, incremental = original.split("static int token_attention(", 1)
     records = []
     with tempfile.TemporaryDirectory(prefix="inkling-model-mutations-") as temporary:
         work = Path(temporary)
@@ -51,12 +52,12 @@ def main():
         if baseline.returncode:
             raise RuntimeError("pristine model comparisons failed\n" + output)
         for name, replacements, marker in MUTATIONS:
-            changed = original
+            changed = reference
             for old, new in replacements:
                 if changed.count(old) != 1:
                     raise RuntimeError(f"stale or ambiguous mutation: {name}: {old}")
                 changed = changed.replace(old, new)
-            (work / SOURCE).write_text(changed)
+            (work / SOURCE).write_text(changed + "static int token_attention(" + incremental)
             built, output = command(build, work)
             if built.returncode:
                 raise RuntimeError(f"{name}: build failure is not a numerical rejection\n{output}")

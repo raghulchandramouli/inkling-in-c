@@ -1,9 +1,11 @@
 # Raw-ID generation
 
-D1 adds complete-prefix generation through `inkling_generate`. Every step
-recomputes the complete prefix and selects from its last unpadded logit row.
-The existing `inkling_forward` still starts at position zero and returns logits
-for every input position. Incremental caches belong to D2.
+`inkling_generate` prefills once and then decodes one token at a time by default.
+Per-layer KV and convolution state preserve the scalar full-prefix result.
+`inkling_forward` still starts at position zero and returns every input logit row.
+Set `InklingContextOptions.incremental` to zero, or use `--decode-mode full`,
+to select complete-prefix generation. [Memory and storage](MEMORY.md) describes
+context options, cache budgets, packed trunks, and incremental APIs.
 
 ## C API
 
@@ -213,9 +215,9 @@ with standard-library Python only. A generator or checker change requires honest
 regeneration. The comparator requires actual returned count/effective options and
 actual sampler masses, preserving exact zero versus positive classification.
 
-Full-checkpoint generation remains D5. These miniature results do not establish
-incremental parity, bounded RSS, tokenizer behavior, or cross-platform sampling
-identity. No performance claim follows from this complete-prefix reference loop.
+Full-checkpoint generation remains D5. The D1 results below predate the D2-D4 miniature validation in
+[MEMORY.md](MEMORY.md). Full-model RSS, tokenizer behavior, and cross-platform
+sampling identity remain unverified. No performance claim follows from this complete-prefix reference loop.
 
 ## Recorded D1 results
 
